@@ -134,6 +134,18 @@ class ReelsViewModel(private val session: ServerSession) : ViewModel() {
     }
 }
 
+/** How many of the next reels get their video preloaded. */
+private const val PRELOAD_AHEAD = 3
+
+/** Asks the server for the first bytes of a video: it then fetches and caches the whole file in the background. */
+private fun warm(session: ServerSession, url: String) {
+    session.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            session.api.http.newCall(okhttp3.Request.Builder().url(url).header("Range", "bytes=0-1").build()).execute().close()
+        }
+    }
+}
+
 private fun compact(n: Long?): String = when {
     n == null -> ""
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0).replace(".0M", "M")
@@ -158,6 +170,7 @@ fun ReelsScreen(vm: ReelsViewModel, session: ServerSession, connected: Boolean) 
     var sharing by remember { mutableStateOf<WebPost?>(null) }
     var commenting by remember { mutableStateOf<WebPost?>(null) }
     val pager = rememberPagerState { vm.reels.size + 1 }
+    val warmed = remember(vm.generation) { HashSet<String>() }
 
     DisposableEffect(player) { onDispose { player.release() } }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -181,6 +194,12 @@ fun ReelsScreen(vm: ReelsViewModel, session: ServerSession, connected: Boolean) 
                 player.stop()
             }
             if (page >= vm.reels.size - 3) vm.load(fresh = false)
+            // Warm the next reels' videos (the server fetches each one completely on its first request), so
+            // swiping to them starts at once, like Instagram.
+            for (r in vm.reels.drop(page + 1).take(PRELOAD_AHEAD)) {
+                val url = r.video?.takeIf { it.kind == "video" }?.src?.let { session.mediaUrl(it) } ?: continue
+                if (warmed.add(url)) warm(session, url)
+            }
         }
     }
 

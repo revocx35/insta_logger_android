@@ -22,8 +22,8 @@ android {
         applicationId = "io.github.revocx35.instalogger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.3.1"
         // On-device tests (app/src/androidTest): ./gradlew :app:connectedDebugAndroidTest with an emulator running.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

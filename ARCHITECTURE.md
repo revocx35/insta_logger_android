@@ -18,7 +18,7 @@ the session; nothing is written to disk except files the owner saves.
 
 ## Reels
 `ReelsScreen`: a `VerticalPager` over `GET /api/reels` pages; one shared ExoPlayer plays the current page (posters
-for the rest); like/unlike `POST /api/reels/:id/like`, comments `GET/POST /api/reels/:id/comments` (`replyTo` for
+for the rest; the next 3 reels are warmed with a `Range: bytes=0-1` request so the server caches them); like/unlike `POST /api/reels/:id/like`, comments `GET/POST /api/reels/:id/comments` (`replyTo` for
 replies); "Send" posts the reel link (`https://www.instagram.com/reel/<code>/`) into chosen chats via the normal
 send route.
 
