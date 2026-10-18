@@ -6,7 +6,7 @@
   `IgText` (links + @usernames, port of the web's `igText.tsx`), `Format` (times/sizes), `vnc/` (RFB client for the
   server's VNC bridge `/api/vnc`).
 - **app/** (Compose): `AppRoot` routes server → signup → login/recover → recovery key → Instagram login → main;
-  `MainShell` tabs: Chats, Reels, Unsent, Search, Instagram (VNC), Settings. `data/` holds `AppGraph` (OkHttp with
+  `MainShell` tabs: Chats, Reels, Stories, Unsent, Search, Instagram (VNC), Settings. `data/` holds `AppGraph` (OkHttp with
   pinned trust), `SecureCookieJar` (session cookie encrypted with an Android Keystore AES-GCM key), `ServerTrust`
   (system CAs + per-server trusted certs/fingerprints), `AppController` (state + events while in foreground).
   `media/` plays video/voice (Media3 over the authenticated OkHttp client), views and saves media.
@@ -21,6 +21,13 @@ the session; nothing is written to disk except files the owner saves.
 for the rest); like/unlike `POST /api/reels/:id/like`, comments `GET/POST /api/reels/:id/comments` (`replyTo` for
 replies); "Send" posts the reel link (`https://www.instagram.com/reel/<code>/`) into chosen chats via the normal
 send route.
+
+## Stories
+`StoriesScreen`: `GET /api/stories/status|authors` and `GET /api/stories?user=&before=` (newest first); account rings
+filter the `LazyVerticalGrid`; the full-screen viewer plays videos with one ExoPlayer and moves on when one ends.
+*Check now* = `POST /api/stories/check`. Story settings (on/off, retention days, check interval, everyone / chosen
+accounts with a picker from `GET /api/stories/accounts`) live in Settings → Logging. The server does the logging;
+the app only shows what it saved.
 
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server
