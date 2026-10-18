@@ -287,6 +287,10 @@ data class Settings(
     val sessionRefreshHours: Int = 2,
     val storyLogging: Boolean = false,
     val storyRetentionDays: Int = 30,
+    val storyCheckMinutes: Int = 45,
+    /** "all" | "selected" */
+    val storyAccounts: String = "all",
+    val storySelected: List<String> = emptyList(),
 )
 
 @Serializable
@@ -299,6 +303,9 @@ data class SettingsPatch(
     val sessionRefreshHours: Int? = null,
     val storyLogging: Boolean? = null,
     val storyRetentionDays: Int? = null,
+    val storyCheckMinutes: Int? = null,
+    val storyAccounts: String? = null,
+    val storySelected: List<String>? = null,
 )
 
 /* ----------------------------------------------------------------- sending */
@@ -416,4 +423,15 @@ data class StoryStatus(
     val lastCheckAt: Long? = null,
     val nextCheckAt: Long? = null,
     val lastResult: String? = null,
+)
+
+/** An account seen in the stories bar (for picking whose stories are logged). */
+@Serializable
+data class StoryAccount(
+    val id: String,
+    val username: String? = null,
+    val name: String? = null,
+    val avatarUrl: String? = null,
+    val count: Int = 0,
+    val selected: Boolean = false,
 )

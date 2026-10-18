@@ -349,7 +349,14 @@ private fun LoggingSection(d: SettingsDeps) {
         Column(Modifier.widthIn(max = 420.dp)) {
             NumberSetting("Keep stories for (days)", cur.storyRetentionDays, 1..3650) { save(SettingsPatch(storyRetentionDays = it)) }
         }
-        MutedText("Checks about every 45 minutes (at random times) and saves new stories encrypted on your server; they are never marked as seen. Older stories are deleted after the days above.", style = WaType.small)
+        if (cur.storyLogging) {
+            Column(Modifier.widthIn(max = 420.dp)) {
+                NumberSetting("Check every (minutes)", cur.storyCheckMinutes, 15..720) { save(SettingsPatch(storyCheckMinutes = it)) }
+            }
+            CheckRow(cur.storyAccounts == "selected", { save(SettingsPatch(storyAccounts = if (it) "selected" else "all")) }, "Only the accounts I choose (otherwise everyone I follow)")
+            if (cur.storyAccounts == "selected") StoryAccountPicker(d, cur.storySelected) { save(SettingsPatch(storySelected = it)) }
+        }
+        MutedText("Checks at the interval above (each time randomly a few minutes earlier or later) and saves new stories encrypted on your server; they are never marked as seen. Older stories are deleted after the days above.", style = WaType.small)
         ErrorNote(op.error)
         OkNote(op.ok)
     }
@@ -521,4 +528,25 @@ private fun AutoSaveSettings(graph: AppGraph, api: ApiClient) {
             "photo backup can see them.",
         style = WaType.small,
     )
+}
+
+/** Whose stories are logged: accounts seen in the stories bar (they appear once they post a story). */
+@Composable
+private fun StoryAccountPicker(d: SettingsDeps, selected: List<String>, onChange: (List<String>) -> Unit) {
+    var accounts by remember { mutableStateOf<List<io.github.revocx35.instalogger.core.StoryAccount>?>(null) }
+    var q by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { accounts = runCatching { d.api.storyAccounts() }.getOrDefault(emptyList()) }
+    val list = accounts
+    Column(Modifier.widthIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        MutedText("${selected.size} of ${list?.size ?: "…"} accounts chosen", style = WaType.small)
+        WaTextField(q, { q = it }, null, placeholder = "Search accounts")
+        if (list == null) Spinner()
+        if (list != null && list.isEmpty()) MutedText("No accounts yet. Accounts appear here once they post a story (after the next check).", style = WaType.small)
+        Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+            for (a in (list ?: emptyList()).filter { q.isBlank() || (it.username ?: "").contains(q.trim(), true) || (it.name ?: "").contains(q.trim(), true) }) {
+                val on = a.id in selected
+                CheckRow(on, { onChange(if (on) selected - a.id else selected + a.id) }, (a.username ?: a.id) + (a.name?.let { " · $it" } ?: "") + if (a.count > 0) " (${a.count} saved)" else "")
+            }
+        }
+    }
 }

@@ -30,7 +30,8 @@ Through the same server API as the web UI (`shared/api.d.ts` of insta_logger):
 - **Reels:** Instagram's reels feed, swipe up/down, tap to pause, double-tap or ♥ to like/unlike, comments with
   their first replies, comment and **reply to comments**, **Send** a reel into one or more chats, refresh the feed.
 - **Stories:** the stories of the accounts you follow that the server logged (turn on in Settings → Logging, choose
-  how many days to keep them): filter by account, grid, full-screen viewer, *Check now*. Never marked as seen.
+  how many days to keep them, how often to check, everyone or chosen accounts): filter by account, grid, full-screen
+  viewer, *Check now*. Never marked as seen.
 - **Unsent** feed, global **Search**, **Instagram** (live view of the server's browser: tap = click, drag = scroll,
   pinch = zoom, keyboard, view-only switch, restart, log out), **Settings** (password, 2FA, recovery key, sessions,
   logging options, background session refresh, Instagram connection, security log, wipe).

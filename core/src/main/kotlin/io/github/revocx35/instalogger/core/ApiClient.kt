@@ -330,6 +330,7 @@ class ApiClient(baseClient: OkHttpClient, val baseUrl: HttpUrl) {
 
     suspend fun storyStatus(): StoryStatus = get("/api/stories/status")
     suspend fun storyCheck(): StoryStatus = post("/api/stories/check")
+    suspend fun storyAccounts(): List<StoryAccount> = request("GET", "/api/stories/accounts", null, null, ListSerializer(StoryAccount.serializer()))
     suspend fun storyAuthors(): List<StoryAuthor> = request("GET", "/api/stories/authors", null, null, ListSerializer(StoryAuthor.serializer()))
     suspend fun stories(user: String? = null, before: Long? = null): StoryPage =
         get("/api/stories?limit=60" + (user?.let { "&user=${enc(it)}" } ?: "") + (before?.let { "&before=$it" } ?: ""))
