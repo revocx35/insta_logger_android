@@ -85,6 +85,8 @@ import io.github.revocx35.instalogger.ui.screens.SettingsScreen
 import io.github.revocx35.instalogger.ui.screens.InstagramScreen
 import io.github.revocx35.instalogger.ui.screens.ReelsScreen
 import io.github.revocx35.instalogger.ui.screens.ReelsViewModel
+import io.github.revocx35.instalogger.ui.screens.StoriesScreen
+import io.github.revocx35.instalogger.ui.screens.StoriesViewModel
 import io.github.revocx35.instalogger.ui.theme.Wa
 import io.github.revocx35.instalogger.ui.theme.WaIcons
 import io.github.revocx35.instalogger.ui.theme.WaType
@@ -97,10 +99,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class SearchRoute(val q: String = "")
 @Serializable object InstagramRoute
 @Serializable object ReelsRoute
+@Serializable object StoriesRoute
 @Serializable object SettingsRoute
 
 enum class Tab(val label: String, val icon: ImageVector) {
-    Chats("Chats", WaIcons.chats), Reels("Reels", WaIcons.reels), Deleted("Unsent", WaIcons.deleted), Search("Search", WaIcons.search), Instagram("Instagram", WaIcons.monitor), Settings("Settings", WaIcons.settings)
+    Chats("Chats", WaIcons.chats), Reels("Reels", WaIcons.reels), Stories("Stories", WaIcons.stories), Deleted("Unsent", WaIcons.deleted), Search("Search", WaIcons.search), Instagram("Instagram", WaIcons.monitor), Settings("Settings", WaIcons.settings)
 }
 
 private fun tabRoute(t: Tab): Any = when (t) {
@@ -108,6 +111,7 @@ private fun tabRoute(t: Tab): Any = when (t) {
     Tab.Deleted -> DeletedRoute
     Tab.Search -> SearchRoute()
     Tab.Reels -> ReelsRoute
+    Tab.Stories -> StoriesRoute
     Tab.Instagram -> InstagramRoute
     Tab.Settings -> SettingsRoute
 }
@@ -184,6 +188,7 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
         dest.hasRoute<DeletedRoute>() -> Tab.Deleted
         dest.hasRoute<SearchRoute>() -> Tab.Search
         dest.hasRoute<ReelsRoute>() -> Tab.Reels
+        dest.hasRoute<StoriesRoute>() -> Tab.Stories
         dest.hasRoute<InstagramRoute>() -> Tab.Instagram
         dest.hasRoute<SettingsRoute>() -> Tab.Settings
         else -> null
@@ -258,6 +263,10 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                             SearchScreen(vm.query, { vm.query = it }, vm.result, vm.error, vm.busy, vm::run) { chatId, messageId -> openChat(chatId, messageId) }
                         }
                         composable<InstagramRoute> { InstagramScreen(session.api, wa) }
+                        composable<StoriesRoute> {
+                            val vm: StoriesViewModel = viewModel(key = "stories:${session.id}") { StoriesViewModel(session) }
+                            StoriesScreen(vm, session, wa?.connected == true) { nav.goTab(Tab.Settings) }
+                        }
                         composable<ReelsRoute> {
                             val vm: ReelsViewModel = viewModel(key = "reels:${session.id}") { ReelsViewModel(session) }
                             ReelsScreen(vm, session, wa?.connected == true)

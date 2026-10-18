@@ -326,6 +326,14 @@ class ApiClient(baseClient: OkHttpClient, val baseUrl: HttpUrl) {
     suspend fun editMessage(messageId: String, text: String): OkResponse = send("POST", "/api/messages/${enc(messageId)}/edit", EditRequest(text))
     suspend fun markRead(chatId: String): OkResponse = post("/api/chats/${enc(chatId)}/read")
 
+    /* -------------------------------------------------------------- stories */
+
+    suspend fun storyStatus(): StoryStatus = get("/api/stories/status")
+    suspend fun storyCheck(): StoryStatus = post("/api/stories/check")
+    suspend fun storyAuthors(): List<StoryAuthor> = request("GET", "/api/stories/authors", null, null, ListSerializer(StoryAuthor.serializer()))
+    suspend fun stories(user: String? = null, before: Long? = null): StoryPage =
+        get("/api/stories?limit=60" + (user?.let { "&user=${enc(it)}" } ?: "") + (before?.let { "&before=$it" } ?: ""))
+
     /* ---------------------------------------------------------------- reels */
 
     suspend fun reels(cursor: String? = null): ReelPage = get("/api/reels" + (cursor?.let { "?cursor=${enc(it)}" } ?: ""))

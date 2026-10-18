@@ -345,6 +345,11 @@ private fun LoggingSection(d: SettingsDeps) {
             }
         }
         MutedText("Reloads the background Instagram tab like a person coming back to it, each time randomly up to 10 minutes earlier or later.", style = WaType.small)
+        CheckRow(cur.storyLogging, { save(SettingsPatch(storyLogging = it)) }, "Log the stories of the accounts I follow")
+        Column(Modifier.widthIn(max = 420.dp)) {
+            NumberSetting("Keep stories for (days)", cur.storyRetentionDays, 1..3650) { save(SettingsPatch(storyRetentionDays = it)) }
+        }
+        MutedText("Checks about every 45 minutes (at random times) and saves new stories encrypted on your server; they are never marked as seen. Older stories are deleted after the days above.", style = WaType.small)
         ErrorNote(op.error)
         OkNote(op.ok)
     }

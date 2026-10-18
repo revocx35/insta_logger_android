@@ -285,6 +285,8 @@ data class Settings(
     val readReceipts: Boolean = false,
     val sessionRefresh: Boolean = true,
     val sessionRefreshHours: Int = 2,
+    val storyLogging: Boolean = false,
+    val storyRetentionDays: Int = 30,
 )
 
 @Serializable
@@ -295,6 +297,8 @@ data class SettingsPatch(
     val readReceipts: Boolean? = null,
     val sessionRefresh: Boolean? = null,
     val sessionRefreshHours: Int? = null,
+    val storyLogging: Boolean? = null,
+    val storyRetentionDays: Int? = null,
 )
 
 /* ----------------------------------------------------------------- sending */
@@ -375,3 +379,41 @@ data class WebComment(
 @Serializable data class LikeRequest(val like: Boolean)
 @Serializable data class CommentRequest(val text: String, val replyTo: String? = null)
 @Serializable data class CommentResponse(val comment: WebComment? = null)
+
+/* ------------------------------------------------------------------ stories */
+
+@Serializable
+data class StoryAuthor(
+    val id: String,
+    val username: String? = null,
+    val name: String? = null,
+    val avatarUrl: String? = null,
+    val count: Int = 0,
+    val latest: Long = 0,
+)
+
+@Serializable
+data class StoryItem(
+    val id: String,
+    val userId: String,
+    val username: String? = null,
+    /** "image" | "video" */
+    val type: String = "image",
+    val takenAt: Long = 0,
+    val expiresAt: Long? = null,
+    /** pending · downloaded · failed · too_large */
+    val status: String = "pending",
+    val url: String? = null,
+)
+
+@Serializable data class StoryPage(val items: List<StoryItem> = emptyList(), val nextBefore: Long? = null)
+
+@Serializable
+data class StoryStatus(
+    val enabled: Boolean = false,
+    val retentionDays: Int = 30,
+    val stories: Int = 0,
+    val lastCheckAt: Long? = null,
+    val nextCheckAt: Long? = null,
+    val lastResult: String? = null,
+)
