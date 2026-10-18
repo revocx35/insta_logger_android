@@ -1,0 +1,196 @@
+package io.github.revocx35.instalogger.core
+
+import kotlinx.coroutines.runBlocking
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
+import org.junit.Test
+
+class ApiClientTest {
+    private lateinit var server: MockWebServer
+    private lateinit var api: ApiClient
+
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+        api = ApiClient(OkHttpClient(), parseServerUrl(server.url("/").toString())!!)
+    }
+
+    @After
+    fun tearDown() = server.close()
+
+    private fun json(body: String, code: Int = 200) =
+        MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body).build()
+
+    @Test
+    fun sendsOriginAndCsrfLikeTheBrowser() = runBlocking {
+        server.enqueue(json("""{"hasOwner":true,"authenticated":true,"onboardingComplete":true,"csrfToken":"tok","ig":{"state":"ready","mediaQueue":0,"since":1,"newField":1}}"""))
+        server.enqueue(json("""{"ok":true}"""))
+        val st = api.state()
+        assertEquals(IgState.Ready, st.ig?.state)
+        api.csrfToken = st.csrfToken
+        api.igRestart()
+        val get = server.takeRequest()
+        assertEquals("GET", get.method)
+        assertEquals(api.origin, get.headers["Origin"])
+        assertNull(get.headers["X-CSRF-Token"])
+        val post = server.takeRequest()
+        assertEquals("POST", post.method)
+        assertEquals("tok", post.headers["X-CSRF-Token"])
+        assertEquals("http://${server.hostName}:${server.port}", post.headers["Origin"])
+        assertTrue(post.headers["Content-Type"]!!.startsWith("application/json"))
+        assertEquals("{}", post.body?.utf8())
+    }
+
+    @Test
+    fun sendsMessagesAndUploadsRawFiles() = runBlocking {
+        api.csrfToken = "tok"
+        server.enqueue(json("""{"id":"true_1@c.us_X"}"""))
+        server.enqueue(json("""{"uploadId":"0123456789abcdef0123456789abcdef","size":3}"""))
+        server.enqueue(json("""{"id":null}"""))
+        server.enqueue(json("""{"ok":true}"""))
+        assertEquals("true_1@c.us_X", api.sendText("1@c.us", "Merhaba\nikinci", "false_1@c.us_Q").id)
+        val text = server.takeRequest()
+        assertEquals("/api/chats/1%40c.us/send", text.target)
+        assertEquals("tok", text.headers["X-CSRF-Token"])
+        assertEquals("""{"text":"Merhaba\nikinci","quotedId":"false_1@c.us_Q"}""", text.body?.utf8())
+
+        val up = api.upload(byteArrayOf(1, 2, 3).toRequestBody("image/jpeg".toMediaType()), "tatil fotoğrafı.jpg")
+        assertEquals("0123456789abcdef0123456789abcdef", up.uploadId)
+        val raw = server.takeRequest()
+        assertEquals("/api/uploads", raw.target)
+        assertEquals("tok", raw.headers["X-CSRF-Token"])
+        assertEquals("image/jpeg", raw.headers["X-File-Type"])
+        assertEquals("tatil%20fotoğrafı.jpg".replace("ğ", "%C4%9F").replace("ı", "%C4%B1"), raw.headers["X-Filename"])
+        assertEquals(3, raw.body?.size?.toInt())
+        assertEquals(api.origin, raw.headers["Origin"])
+
+        api.sendMedia("1@c.us", up.uploadId, SendMediaKind.Voice, null)
+        assertEquals("""{"uploadId":"0123456789abcdef0123456789abcdef","kind":"voice"}""", server.takeRequest().body?.utf8())
+        api.react("m 1", "")
+        val react = server.takeRequest()
+        assertEquals("/api/messages/m%201/react", react.target)
+        assertEquals("""{"emoji":""}""", react.body?.utf8())
+    }
+
+    @Test
+    fun mapsUploadErrors() = runBlocking {
+        server.enqueue(json("", 413))
+        server.enqueue(json("""{"error":{"code":"conflict","message":"Too many files waiting to be sent."}}""", 409))
+        for (expected in listOf("too_large" to "The file is too large (64 MB at most).", "conflict" to "Too many files waiting to be sent.")) {
+            try {
+                api.upload(byteArrayOf(1).toRequestBody(null), null)
+                fail("expected an error")
+            } catch (e: ApiException) {
+                assertEquals(expected, e.code to e.message)
+            }
+        }
+    }
+
+    @Test
+    fun readsTheMediaFeed() = runBlocking {
+        server.enqueue(json("""{"items":[],"cursor":"41","more":false}"""))
+        server.enqueue(json("""{"items":[{"chat":{"id":"1@c.us","name":"A","kind":"user"},"message":{"id":"m1","chatId":"1@c.us","type":"image","ts":5,"media":{"status":"downloaded","url":"/api/media/42","mime":"image/jpeg"}}}],"cursor":"42","more":true}"""))
+        assertEquals("41", api.mediaFeed(null).cursor)
+        assertEquals("/api/media-feed?limit=50", server.takeRequest().target)
+        val page = api.mediaFeed("41", 10)
+        assertEquals("/api/media-feed?limit=10&after=41", server.takeRequest().target)
+        assertEquals("/api/media/42", page.items.single().message.media?.url)
+        assertEquals(true, page.more)
+    }
+
+    @Test
+    fun omitsEmptyOptionalFieldsAndEncodesPaths() = runBlocking {
+        server.enqueue(json("""{"ok":false,"needTotp":true}"""))
+        server.enqueue(json("""{"messages":[{"id":"m1","chatId":"1@c.us","type":"brand_new_type","media":{"status":"weird"}}],"nextBefore":null}"""))
+        assertEquals(true, api.login("owner", "pw", null).needTotp)
+        assertEquals("""{"username":"owner","password":"pw"}""", server.takeRequest().body?.utf8())
+        val page = api.messages("123@g.us", "5_6")
+        assertEquals(MessageType.Unknown, page.messages[0].type)
+        assertEquals(MediaStatus.None, page.messages[0].media?.status)
+        assertEquals("/api/chats/123%40g.us/messages?limit=60&before=5_6", server.takeRequest().target)
+    }
+
+    @Test
+    fun mapsErrorsAndUnauthorized() = runBlocking {
+        var unauthorized = 0
+        api.onUnauthorized = { unauthorized++ }
+        server.enqueue(json("""{"error":{"code":"rate_limited","message":"Too many attempts.","retryAfter":30}}""", 429))
+        server.enqueue(json("""{"error":{"code":"unauthorized","message":"Please log in."}}""", 401))
+        server.enqueue(MockResponse.Builder().code(301).addHeader("Location", "https://example.test/").build())
+        server.enqueue(MockResponse.Builder().code(200).body("<html>not json</html>").build())
+        try { api.chats(); fail() } catch (e: ApiException) {
+            assertEquals("rate_limited", e.code)
+            assertEquals("Too many attempts. (retry in 30s)", e.userMessage)
+        }
+        try { api.chats(); fail() } catch (e: ApiException) { assertEquals(401, e.status) }
+        assertEquals(1, unauthorized)
+        try { api.state(); fail() } catch (e: ApiException) {
+            assertEquals(ApiException.REDIRECT, e.code)
+            assertTrue(e.message.contains("https://example.test"))
+        }
+        try { api.state(); fail() } catch (e: ApiException) { assertEquals(ApiException.NOT_INSTA_LOGGER, e.code) }
+    }
+
+    @Test
+    fun networkErrorsAreFriendly() = runBlocking {
+        val dead = ApiClient(OkHttpClient(), "http://127.0.0.1:1/".toHttpUrl())
+        try { dead.state(); fail() } catch (e: ApiException) { assertEquals(ApiException.NETWORK, e.code) }
+    }
+
+    @Test
+    fun serverUrlParsing() {
+        assertEquals("https://wa.example.com/", parseServerUrl("wa.example.com")?.toString())
+        assertEquals("http://192.168.1.50/", parseServerUrl(" http://192.168.1.50/login?x=1 ")?.toString())
+        assertEquals("https://h:8443/", parseServerUrl("https://h:8443")?.toString())
+        assertNull(parseServerUrl("ftp://x"))
+        assertNull(parseServerUrl("https://user:pw@x"))
+        assertNull(parseServerUrl("a b"))
+        assertEquals("https://h:8443", parseServerUrl("https://h:8443")!!.originString())
+        assertEquals("http://192.168.1.50", parseServerUrl("http://192.168.1.50")!!.originString())
+        assertTrue(isLocalHost("192.168.1.50"))
+        assertTrue(isLocalHost("10.1.2.3"))
+        assertTrue(isLocalHost("nas.local"))
+        assertTrue(!isLocalHost("172.32.0.1"))
+        assertTrue(!isLocalHost("wa.example.com"))
+        assertTrue(!isLocalHost("8.8.8.8"))
+    }
+
+    @Test
+    fun parsesServerEvents() {
+        val ev = ApiJson.decodeFromString(ServerEvent.serializer(), """{"type":"message_update","chatId":"a@c.us","messageId":"m","reason":"deleted"}""")
+        assertEquals(ServerEvent.MessageUpdate("a@c.us", "m", "deleted"), ev)
+        assertEquals(ServerEvent.SessionRevoked, ApiJson.decodeFromString(ServerEvent.serializer(), """{"type":"session_revoked"}"""))
+        val sync = ApiJson.decodeFromString(ServerEvent.serializer(), """{"type":"sync_progress","sync":null}""")
+        assertEquals(ServerEvent.SyncProgressChanged(null), sync)
+    }
+
+    @Test
+    fun reelsEndpoints() = runBlocking {
+        api.csrfToken = "tok"
+        server.enqueue(json("""{"items":[{"id":"39","code":"C1","user":{"id":"7","username":"maker","verified":true},"media":[{"kind":"video","src":"/api/reels/media/AAAAAAAAAAAAAAAAAAAAAA"}],"likeCount":5}],"next":"N"}"""))
+        server.enqueue(json("""{"ok":true}"""))
+        server.enqueue(json("""{"comment":{"id":"17","user":{"id":"1","username":"me"},"text":"@maker yes","replies":[]}}"""))
+        val page = api.reels()
+        assertEquals("N", page.next)
+        assertEquals("https://www.instagram.com/reel/C1/", page.items[0].link)
+        assertEquals("video", page.items[0].video?.kind)
+        assertEquals("/api/reels", server.takeRequest().target)
+        api.reelLike("39", false)
+        val like = server.takeRequest()
+        assertEquals("/api/reels/39/like", like.target)
+        assertEquals("""{"like":false}""", like.body?.utf8())
+        assertEquals("@maker yes", api.reelComment("39", "@maker yes", "16").comment?.text)
+        assertEquals("""{"text":"@maker yes","replyTo":"16"}""", server.takeRequest().body?.utf8())
+    }
+}

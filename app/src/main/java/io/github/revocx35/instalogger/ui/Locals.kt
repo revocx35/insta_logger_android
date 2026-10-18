@@ -1,0 +1,38 @@
+package io.github.revocx35.instalogger.ui
+
+import androidx.compose.runtime.staticCompositionLocalOf
+import coil3.ImageLoader
+import io.github.revocx35.instalogger.core.Formatter
+import io.github.revocx35.instalogger.core.Message
+import io.github.revocx35.instalogger.core.MessageEdit
+
+/** Where media and avatars come from (the logged-in server session; a fake in screenshot tests). */
+interface MediaHost {
+    val imageLoader: ImageLoader?
+
+    /** Shared voice-message / audio player (null in previews). */
+    val audio: io.github.revocx35.instalogger.media.AudioController? get() = null
+
+    /** Absolute URL for a server-relative `/api/media/…` URL, or null. */
+    fun url(relative: String?): String?
+}
+
+/** What a message bubble can ask the screen to do. */
+interface MessageActions {
+    fun jump(messageId: String) {}
+    fun openMedia(msg: Message) {}
+    fun saveMedia(msg: Message) {}
+    /** Saves several photos/videos to the gallery at once (chat multi-select). */
+    fun saveToGallery(messages: List<Message>) {}
+    fun openDocument(msg: Message) {}
+    suspend fun retryMedia(messageId: String) {}
+    suspend fun edits(messageId: String): List<MessageEdit> = emptyList()
+    /** Long-press: the message menu (reply, react, copy, edit, delete, select). */
+    fun longPress(msg: Message) {}
+}
+
+object NoMessageActions : MessageActions
+
+val LocalMediaHost = staticCompositionLocalOf<MediaHost?> { null }
+val LocalFormatter = staticCompositionLocalOf { Formatter() }
+val LocalMessageActions = staticCompositionLocalOf<MessageActions> { NoMessageActions }
