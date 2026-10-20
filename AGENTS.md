@@ -12,7 +12,7 @@ install, build, tests), [CLAUDE.md](CLAUDE.md) (the same rules for Claude sessio
 
 | Path | What |
 |---|---|
-| `core/` (plain Kotlin/JVM) | `Models.kt` (mirror of the server's `shared/api.d.ts`), `ApiClient` (Origin + CSRF like a browser, no redirects), `EventStream` (SSE), `IgText` (links/@usernames), `Format`, `vnc/` (RFB client) |
+| `core/` (plain Kotlin/JVM) | `Models.kt` (mirror of the server's `shared/api.d.ts`), `ApiClient` (Origin + CSRF like a browser, no redirects), `EventStream` (SSE), `IgText` (links/@usernames), `Format`, `vnc/` (RFB client), `Authentik.kt` (authentik forward auth, `docs/authentik.md`) |
 | `app/.../ui/` | `AppRoot` (screen routing), `MainShell` (tabs), `screens/` (Chats, Reels, Stories, Unsent, Search, Instagram, Settings, auth), `components/` (bubbles, media, inputs), `theme/` (web CSS tokens, icons) |
 | `app/.../data/` | `AppGraph`, `AppController`, `SecureCookieJar` (Keystore-encrypted session cookie), `ServerTrust` (TLS trust), `ServerSender` |
 | `app/.../media/` | ExoPlayer setup, media viewer, save/open, voice recorder, gallery auto-save |
@@ -48,4 +48,7 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
   client, they are just the component names.
 - Compose trailing lambdas bind to the last parameter: keep `onClick` last in small composables.
 - Own bubbles are white text on blue (`bubbleOutText`): anything inside a bubble must use the bubble's colors.
+- `core/Authentik.kt` is the same file in wa_logger's client, web-ip-phone and RWR (only the package differs): change
+  them together. authentik's introspection accepts the app's token for a proxy provider only if the app's OAuth2
+  provider lists that proxy provider in `jwt_federation_providers` (not the other way round).
 - media3 APIs marked `UnstableApi` need `@androidx.annotation.OptIn(UnstableApi::class)` or lint fails.

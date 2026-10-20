@@ -111,6 +111,12 @@ app/    Android UI: theme (web CSS tokens), components (bubbles, media, avatarsâ
 
 Based on the wa_logger Android client (same structure and security model), adapted to insta_logger.
 
+## authentik (0.4.0)
+
+If your reverse proxy puts insta_logger behind [authentik](https://goauthentik.io) forward auth, the app shows
+**Sign in with authentik** on the connect screen: log in once in the browser; the app keeps an encrypted, revocable
+refresh token. Setup: [docs/authentik.md](docs/authentik.md).
+
 ## Not included (yet)
 
 - Push notifications (the server only offers a foreground event stream).

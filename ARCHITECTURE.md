@@ -4,11 +4,14 @@
 - **core/** (Kotlin/JVM, no Android): `Models.kt` (DTOs mirroring insta_logger's `shared/api.d.ts`), `ApiClient`
   (OkHttp; JSON; `Origin` + `X-CSRF-Token` like the browser; no redirects followed), `EventStream` (SSE `/api/events`),
   `IgText` (links + @usernames, port of the web's `igText.tsx`), `Format` (times/sizes), `vnc/` (RFB client for the
-  server's VNC bridge `/api/vnc`).
+  server's VNC bridge `/api/vnc`), `Authentik` (authentik forward-auth support; same file as in wa_logger, web-ip-phone
+  and RWR, design + setup in `docs/authentik.md`).
 - **app/** (Compose): `AppRoot` routes server → signup → login/recover → recovery key → Instagram login → main;
   `MainShell` tabs: Chats, Reels, Stories, Unsent, Search, Instagram (VNC), Settings. `data/` holds `AppGraph` (OkHttp with
   pinned trust), `SecureCookieJar` (session cookie encrypted with an Android Keystore AES-GCM key), `ServerTrust`
-  (system CAs + per-server trusted certs/fingerprints), `AppController` (state + events while in foreground).
+  (system CAs + per-server trusted certs/fingerprints), `AppController` (state + events while in foreground),
+  `AuthentikSignIn` (Custom Tab login, `AuthentikRedirectActivity` for `<applicationId>:/authentik`, Keystore-encrypted
+  token store; UI in `ui/screens/AuthentikScreens.kt`).
   `media/` plays video/voice (Media3 over the authenticated OkHttp client), views and saves media.
 
 ## Data flow
@@ -28,6 +31,12 @@ filter the `LazyVerticalGrid`; the full-screen viewer plays videos with one ExoP
 *Check now* = `POST /api/stories/check`. Story settings (on/off, retention days, check interval, everyone / chosen
 accounts with a picker from `GET /api/stories/accounts`) live in Settings → Logging. The server does the logging;
 the app only shows what it saved.
+
+## authentik (0.4.0)
+A server behind authentik forward auth answers with authentik's sign-in redirect; the interceptors in `core/Authentik.kt`
+turn that into "Sign in with authentik" (OAuth 2 + PKCE in a Custom Tab, public client `instalogger-android`), then send
+`Authorization: Bearer` (refreshed automatically; refresh token Keystore-encrypted, revoked when the server is forgotten).
+The outpost validates it by token introspection. See `docs/authentik.md`.
 
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server

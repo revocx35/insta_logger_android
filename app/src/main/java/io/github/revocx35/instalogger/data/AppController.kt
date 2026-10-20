@@ -7,6 +7,7 @@ import io.github.revocx35.instalogger.core.ApiException
 import io.github.revocx35.instalogger.core.AppState
 import io.github.revocx35.instalogger.core.ServerEvent
 import io.github.revocx35.instalogger.core.IgStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +48,8 @@ class AppController(private val graph: AppGraph) {
     private var foreground = false
 
     init {
+        // The authentik sign-in ran out (refresh token expired or revoked): show the sign-in screen.
+        graph.authentik.onSignInRequired = { graph.scope.launch { refresh() } }
         graph.savedServer()?.let { open(it) } ?: run { _loading.value = false }
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
@@ -101,6 +104,7 @@ class AppController(private val graph: AppGraph) {
     fun setServer(url: HttpUrl, allowHttp: Boolean) {
         if (graph.prefs.serverUrl != url.toString()) {
             graph.cookies.clear()
+            if (graph.authentik.tokens() != null && !graph.authentik.signedInFor(url)) graph.scope.launch(Dispatchers.IO) { graph.authentik.signOut() }
             if (graph.savedServer()?.host != url.host) graph.prefs.trustedCerts = emptyList()
         }
         graph.prefs.serverUrl = url.toString()
@@ -115,6 +119,7 @@ class AppController(private val graph: AppGraph) {
         _session.value?.close()
         _session.value = null
         graph.cookies.clear()
+        graph.scope.launch(Dispatchers.IO) { graph.authentik.signOut() }
         graph.prefs.clearServer()
         graph.trust.reload()
         graph.trust.serverHost = null
@@ -144,7 +149,8 @@ class AppController(private val graph: AppGraph) {
                 if (_session.value === s) {
                     _error.value = e as? ApiException ?: ApiException(0, "internal", s.fail("state", e), cause = e)
                     // Keep showing the last known state on transient errors once logged in.
-                    if (_state.value?.authenticated != true) _state.value = null
+                    // Without an authentik sign-in nothing works, so that one always leads to the sign-in screen.
+                    if (_state.value?.authenticated != true || (e as? ApiException)?.code == ApiException.AUTHENTIK) _state.value = null
                 }
             } finally {
                 if (_session.value === s) _loading.value = false

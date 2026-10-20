@@ -36,6 +36,8 @@ import io.github.revocx35.instalogger.ui.screens.SetupLinkScreen
 import io.github.revocx35.instalogger.ui.screens.SetupRecoveryScreen
 import io.github.revocx35.instalogger.ui.screens.SignupScreen
 import io.github.revocx35.instalogger.ui.screens.UnreachableScreen
+import io.github.revocx35.instalogger.ui.screens.AuthentikScreen
+import io.github.revocx35.instalogger.ui.screens.authentikLocation
 import io.github.revocx35.instalogger.ui.theme.Wa
 import kotlinx.coroutines.launch
 import java.security.cert.X509Certificate
@@ -87,6 +89,13 @@ fun AppRoot(graph: AppGraph) {
         when {
             s == null -> ServerScreen(graph) { url, http -> ctrl.setServer(url, http) }
             st == null && loading -> Box(Modifier.fillMaxSize().background(Wa.colors.bg), contentAlignment = Alignment.Center) { Spinner(32.dp) }
+            st == null && error?.code == ApiException.AUTHENTIK -> AuthentikScreen(
+                graph,
+                s.baseUrl,
+                error?.authentikLocation(),
+                onSignedIn = { ctrl.refresh() },
+                onChangeServer = changeServer,
+            )
             st == null -> UnreachableScreen(
                 error?.userMessage,
                 onRetry = { ctrl.refresh() },
