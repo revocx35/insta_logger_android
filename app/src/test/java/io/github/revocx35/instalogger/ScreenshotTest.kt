@@ -44,6 +44,22 @@ import io.github.revocx35.instalogger.ui.screens.ChatState
 import io.github.revocx35.instalogger.ui.screens.DeletedScreen
 import io.github.revocx35.instalogger.ui.screens.DeletedState
 import io.github.revocx35.instalogger.ui.screens.LoginScreen
+import io.github.revocx35.instalogger.ui.screens.LoginStep
+import io.github.revocx35.instalogger.ui.screens.AdminDeps
+import io.github.revocx35.instalogger.ui.screens.AdminPage
+import io.github.revocx35.instalogger.core.AdminOverview
+import io.github.revocx35.instalogger.core.AdminPort
+import io.github.revocx35.instalogger.core.AdminUser
+import io.github.revocx35.instalogger.core.ApiClient
+import io.github.revocx35.instalogger.core.IgState
+import io.github.revocx35.instalogger.core.UserRole
+import io.github.revocx35.instalogger.core.UserStatus
+import io.github.revocx35.instalogger.core.parseServerUrl
+import okhttp3.OkHttpClient
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import io.github.revocx35.instalogger.ui.screens.SearchScreen
 import io.github.revocx35.instalogger.ui.screens.SetupRecoveryScreen
 import io.github.revocx35.instalogger.ui.screens.SignupScreen
@@ -101,7 +117,10 @@ class FakeSender : io.github.revocx35.instalogger.ui.MessageSender {
     override suspend fun readReceipts(): Boolean = false
 }
 
-private val noAuth = AuthActions({ _, _, _ -> }, { _, _, _ -> false }, { _, _, _ -> })
+/** The phone rail has no Users tab (admins open it from Settings there). */
+private val phoneTabs = Tab.entries.filter { it != Tab.Admin }
+
+private val noAuth = AuthActions({ _, _, _ -> }, { _, _, _ -> LoginStep.Done }, { _, _, _ -> }, { _, _, _, _ -> })
 
 /**
  * Renders the main screens with sample data (JVM, Robolectric native graphics) so the design can be
@@ -131,7 +150,7 @@ class ScreenshotTest {
     fun phoneChatList() = shot("phone_chats") {
         Column(Modifier.fillMaxSize()) {
             ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth())
-            BottomRail(Tab.Chats) {}
+            BottomRail(Tab.Chats, phoneTabs) {}
         }
     }
 
@@ -139,7 +158,7 @@ class ScreenshotTest {
     fun phoneChatListDark() = shot("phone_chats_dark", dark = true) {
         Column(Modifier.fillMaxSize()) {
             ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth())
-            BottomRail(Tab.Chats) {}
+            BottomRail(Tab.Chats, phoneTabs) {}
         }
     }
 
@@ -181,7 +200,7 @@ class ScreenshotTest {
     fun phoneDeleted() = shot("phone_deleted") {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) { DeletedScreen(FakeDeleted(SampleData.deleted)) { _, _ -> } }
-            BottomRail(Tab.Deleted) {}
+            BottomRail(Tab.Deleted, phoneTabs) {}
         }
     }
 
@@ -189,7 +208,7 @@ class ScreenshotTest {
     fun phoneSearch() = shot("phone_search") {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) { SearchScreen("plan", {}, SearchResponse(SampleData.hits, false), null, false, {}, { _, _ -> }) }
-            BottomRail(Tab.Search) {}
+            BottomRail(Tab.Search, phoneTabs) {}
         }
     }
 
@@ -206,11 +225,59 @@ class ScreenshotTest {
     @Test
     fun tabletTwoPane() = shot("tablet_two_pane") {
         Row(Modifier.fillMaxSize()) {
-            SideRail(Tab.Chats, SampleData.ready, {}, {})
+            SideRail(Tab.Chats, SampleData.ready, phoneTabs, {}, {})
             ChatListPane(FakeChatList(SampleData.chats), SampleData.ALI, {}, {}, Modifier.widthIn(min = 300.dp, max = 440.dp).width(400.dp).fillMaxHeight())
             Box(Modifier.width(1.dp).fillMaxHeight().background(Wa.colors.border))
             ChatPane(FakeChat(aliSummary, SampleData.aliChat), null, true, NoMessageActions, Modifier.weight(1f).fillMaxHeight())
         }
+    }
+
+    private fun adminDeps() = AdminDeps(ApiClient(OkHttpClient(), parseServerUrl("https://ig.example.com")!!), "owner", false)
+
+    private fun adminOverview() = AdminOverview(
+        currentUserId = 1,
+        users = listOf(
+            AdminUser(1, "owner", UserRole.Admin, port = null, status = UserStatus.Active, ig = IgState.Ready),
+            AdminUser(2, "friend", UserRole.User, port = 8101, status = UserStatus.Pending, ig = IgState.Login),
+        ),
+        defaultPort = 8080,
+        defaultOrigin = "https://ig.example.com",
+        ports = listOf(AdminPort(8101, null, listOf("friend"))),
+        availablePorts = listOf(8101, 8102),
+        maxUsers = 10,
+    )
+
+    @Test
+    fun adminUsersScreen() = shot("admin_users") {
+        AdminPage(adminDeps(), adminOverview(), null, {}, emptyList(), null)
+    }
+
+    @Test
+    fun adminUsersPhoneShowsUsersTabAndPort() {
+        compose.setContent {
+            WaTheme(dark = false) { AdminPage(adminDeps(), adminOverview(), null, {}, emptyList(), null) }
+        }
+        compose.onNodeWithText("Signed in as owner (admin)").assertExists()
+        compose.onNodeWithText("friend").assertExists()
+        compose.onNodeWithText("Waiting for first sign-in").assertExists()
+        compose.onNodeWithText("Signs in at https://ig.example.com:8101", substring = true).assertExists()
+    }
+
+    @Test
+    fun loginWithATemporaryPasswordAsksForANewOne() {
+        val claimAuth = AuthActions(
+            { _, _, _ -> },
+            { _, _, _ -> LoginStep.Claim(false) },
+            { _, _, _ -> },
+            { _, _, _, _ -> },
+        )
+        compose.setContent { WaTheme(dark = false) { LoginScreen(claimAuth, {}, {}) } }
+        compose.onAllNodes(hasSetTextAction())[0].performTextInput("friend")
+        compose.onAllNodes(hasSetTextAction())[1].performTextInput("Temp-Password-Issued-By-Admin")
+        compose.onNode(hasText("Log in") and hasClickAction()).performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Choose your own password").assertExists()
+        compose.onNodeWithText("Set password and continue").assertExists()
     }
 }
 

@@ -38,6 +38,17 @@ Through the same server API as the web UI (`shared/api.d.ts` of insta_logger):
 - **Live updates** over the server's event stream while the app is open.
 - Phones get the bottom menu, tablets / landscape (≥ 900 dp) get the side rail and two panes.
 
+## Multiple users (0.5.0)
+
+The server can serve several people: the first account is the admin (it manages users on the web or here under
+**Users**). An admin can add a user with a temporary password and a port; the user signs in on the app with the
+temporary password, is asked to **choose their own** (their data is encrypted with it, so the admin never sees their
+messages) and then logs **their own** Instagram in on their own live screen. Admins can move a user to another port,
+disable them, reset their password (they need their recovery key) or wipe/delete the account.
+
+In the app the admin gets a **Users** tab (side rail on tablets, *Settings → Users and ports* on phones) with the user
+list, the ports and the admin log. Everyone else never sees it.
+
 ## Install
 
 1. Download the APK from the [Releases](https://github.com/revocx35/insta_logger_android/releases) page, open it on

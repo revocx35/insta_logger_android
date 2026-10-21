@@ -123,6 +123,8 @@ class SettingsDeps(
     val wa: IgStatus?,
     val refresh: suspend () -> Unit,
     val onChangeServer: () -> Unit,
+    /** Admin only: opens the Users page (users, ports, admin log). Null for everyone else. */
+    val onOpenAdmin: (() -> Unit)? = null,
 )
 
 @Composable
@@ -454,6 +456,9 @@ private fun AppSection(d: SettingsDeps) {
     SectionCard("App") {
         Text("Server: ${d.api.baseUrl.toString().removeSuffix("/")}", style = WaType.base, color = c.text)
         if (!d.api.baseUrl.isHttps) MutedText("Unencrypted HTTP connection — only use it inside your own network.", style = WaType.small)
+        d.onOpenAdmin?.let { open ->
+            WaButton("Users and ports", open, style = BtnStyle.Ghost, icon = WaIcons.group)
+        }
         WaButton("Change server", d.onChangeServer, style = BtnStyle.Ghost, icon = WaIcons.server)
         SwitchRow(secure, { graph?.prefs?.setSecureScreen(it) }, "Block screenshots and hide the app in the recent-apps preview")
         if (graph != null) AutoSaveSettings(graph, d.api)

@@ -52,3 +52,11 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
   them together. authentik's introspection accepts the app's token for a proxy provider only if the app's OAuth2
   provider lists that proxy provider in `jwt_federation_providers` (not the other way round).
 - media3 APIs marked `UnstableApi` need `@androidx.annotation.OptIn(UnstableApi::class)` or lint fails.
+
+## Multi-user (0.5.0, matches the server's Admin UI)
+- The admin (the first account) sees an extra **Users** tab: users, ports and the admin log (`AdminScreen.kt`,
+  `ApiClient.admin*`). The phone rail keeps 7 items; admins open it from Settings.
+- A sign-in with a temporary password returns `mustChangePassword`; the login screen then asks for a new password
+  (`AuthActions.claim` → `POST /api/auth/claim`), plus the recovery key after an admin reset.
+- `AppState.role` decides whether the Users tab exists. Never rely on that for security: the server checks the admin
+  role itself and answers 401/403 to everyone else.

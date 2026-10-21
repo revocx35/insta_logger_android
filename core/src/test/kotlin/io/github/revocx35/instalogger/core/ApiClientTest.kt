@@ -1,6 +1,9 @@
 package io.github.revocx35.instalogger.core
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
@@ -81,6 +84,50 @@ class ApiClientTest {
         val react = server.takeRequest()
         assertEquals("/api/messages/m%201/react", react.target)
         assertEquals("""{"emoji":""}""", react.body?.utf8())
+    }
+
+    @Test
+    fun signsInWithATemporaryPasswordAndClaimsIt() = runBlocking {
+        server.enqueue(json("""{"ok":false,"mustChangePassword":true,"needRecoveryKey":true}"""))
+        server.enqueue(json("""{"recoveryKey":"AAAA-BBBB-CCCC"}"""))
+        val login = api.login("friend", "Temp-Password-Issued-By-Admin", null)
+        assertTrue(login.mustChangePassword == true && login.needRecoveryKey == true)
+        assertEquals("friend", kotlinx.serialization.json.Json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject["username"]!!.jsonPrimitive.content)
+        val res = api.claim("friend", "Temp-Password-Issued-By-Admin", "my-own-passphrase-1", "AAAA-BBBB-CCCC")
+        assertEquals("AAAA-BBBB-CCCC", res.recoveryKey)
+        val claim = server.takeRequest()
+        assertEquals("/api/auth/claim", claim.target)
+        val sent = kotlinx.serialization.json.Json.parseToJsonElement(claim.body!!.utf8()).jsonObject
+        assertEquals("my-own-passphrase-1", sent["newPassword"]!!.jsonPrimitive.content)
+        assertEquals("AAAA-BBBB-CCCC", sent["recoveryKey"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun managesUsersAndPortsLikeTheWebAdminPage() = runBlocking {
+        api.csrfToken = "tok"
+        server.enqueue(json("""{"currentUserId":1,"users":[{"id":1,"username":"admin","role":"admin","port":null,"status":"active"},{"id":2,"username":"friend","role":"user","port":8101,"status":"pending","ig":"login"}],"defaultPort":8080,"defaultOrigin":null,"ports":[{"port":8101,"origin":null,"usernames":["friend"]}],"availablePorts":[8101,8102],"maxUsers":10}"""))
+        server.enqueue(json("""{"user":{"id":3,"username":"other","role":"user","port":null,"status":"pending"},"temporaryPassword":"Temporary-Passphrase-For-The-Test"}"""))
+        server.enqueue(json("""{"id":2,"username":"friend","role":"user","port":8102,"status":"active"}"""))
+        val o = api.adminOverview()
+        assertEquals(2, o.users.size)
+        assertEquals(IgState.Login, o.users[1].ig)
+        assertEquals(8101, o.users[1].port)
+        assertEquals(listOf(8101, 8102), o.availablePorts)
+        assertEquals("GET", server.takeRequest().method)
+
+        val created = api.adminCreateUser("other", null, null)
+        assertEquals("Temporary-Passphrase-For-The-Test", created.temporaryPassword)
+        val post = server.takeRequest()
+        assertEquals("/api/admin/users", post.target)
+        // The server needs an explicit null for "default port"; ApiJson would drop it.
+        assertEquals("""{"username":"other","port":null}""", post.body?.utf8())
+        assertEquals("tok", post.headers["X-CSRF-Token"])
+
+        api.adminSetUserPort(2, 8102)
+        val patch = server.takeRequest()
+        assertEquals("PATCH", patch.method)
+        assertEquals("/api/admin/users/2", patch.target)
+        assertEquals("""{"port":8102}""", patch.body?.utf8())
     }
 
     @Test

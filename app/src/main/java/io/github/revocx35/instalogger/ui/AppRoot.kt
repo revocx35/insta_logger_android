@@ -30,6 +30,7 @@ import io.github.revocx35.instalogger.ui.components.Spinner
 import io.github.revocx35.instalogger.ui.screens.AuthActions
 import io.github.revocx35.instalogger.ui.screens.CertificateDialog
 import io.github.revocx35.instalogger.ui.screens.LoginScreen
+import io.github.revocx35.instalogger.ui.screens.LoginStep
 import io.github.revocx35.instalogger.ui.screens.RecoverScreen
 import io.github.revocx35.instalogger.ui.screens.ServerScreen
 import io.github.revocx35.instalogger.ui.screens.SetupLinkScreen
@@ -118,15 +119,22 @@ fun AppRoot(graph: AppGraph) {
                         },
                         login = { user, pw, totp ->
                             val res = s.api.login(user, pw, totp)
-                            if (!res.ok && res.needTotp == true) {
-                                true
-                            } else {
-                                ctrl.refresh().join()
-                                false
+                            when {
+                                !res.ok && res.mustChangePassword == true -> LoginStep.Claim(res.needRecoveryKey == true)
+                                !res.ok && res.needTotp == true -> LoginStep.NeedTotp
+                                else -> {
+                                    ctrl.refresh().join()
+                                    LoginStep.Done
+                                }
                             }
                         },
                         recover = { user, key, pw ->
                             val res = s.api.recover(user, key, pw)
+                            ctrl.pendingRecoveryKey.value = res.recoveryKey
+                            ctrl.refresh().join()
+                        },
+                        claim = { user, tempPw, newPw, recoveryKey ->
+                            val res = s.api.claim(user, tempPw, newPw, recoveryKey)
                             ctrl.pendingRecoveryKey.value = res.recoveryKey
                             ctrl.refresh().join()
                         },

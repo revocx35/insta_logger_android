@@ -32,6 +32,21 @@ filter the `LazyVerticalGrid`; the full-screen viewer plays videos with one ExoP
 accounts with a picker from `GET /api/stories/accounts`) live in Settings → Logging. The server does the logging;
 the app only shows what it saved.
 
+## User management (0.5.0)
+
+The client mirrors the server's `/api/admin/*` (admin only): `ApiClient.adminOverview`, `adminCreateUser`,
+`adminSetUserPort`, `adminSetUserDisabled`, `adminResetUser` (recovery/wipe), `adminDeleteUser`, `adminPutPort`,
+`adminDeletePort`, `adminAudit`. Bodies are built with `buildJsonObject` because the server expects explicit `null` for
+"default port" / "no fixed origin", which `ApiJson` would drop. The admin's password (and 2FA code, when on) is asked
+again for reset and delete.
+
+`AdminScreen` shows names, status, the user's Instagram *state*, ports and the admin log — never content. The temporary
+password is displayed once, with the address of the port the user signs in on. `AppState.role` (server) decides whether
+the tab exists; the server enforces the role regardless.
+
+The claim flow lives in `AuthScreens.LoginScreen`: `LoginResponse.mustChangePassword` → choose-own-password form →
+`claim()` → recovery key shown (`SetupRecoveryScreen`) → normal app.
+
 ## authentik (0.4.0)
 A server behind authentik forward auth answers with authentik's sign-in redirect; the interceptors in `core/Authentik.kt`
 turn that into "Sign in with authentik" (OAuth 2 + PKCE in a Custom Tab, public client `instalogger-android`), then send

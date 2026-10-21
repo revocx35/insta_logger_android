@@ -63,6 +63,7 @@ import io.github.revocx35.instalogger.core.Message
 import io.github.revocx35.instalogger.core.MessageEdit
 import io.github.revocx35.instalogger.core.IgState
 import io.github.revocx35.instalogger.core.IgStatus
+import io.github.revocx35.instalogger.core.UserRole
 import io.github.revocx35.instalogger.data.AppGraph
 import io.github.revocx35.instalogger.data.ServerSender
 import io.github.revocx35.instalogger.data.ServerSession
@@ -71,6 +72,8 @@ import io.github.revocx35.instalogger.media.MediaViewer
 import io.github.revocx35.instalogger.ui.components.WaIcon
 import io.github.revocx35.instalogger.ui.components.WaStatePill
 import io.github.revocx35.instalogger.ui.components.WarnBanner
+import io.github.revocx35.instalogger.ui.screens.AdminDeps
+import io.github.revocx35.instalogger.ui.screens.AdminScreen
 import io.github.revocx35.instalogger.ui.screens.ChatListPane
 import io.github.revocx35.instalogger.ui.screens.ChatListViewModel
 import io.github.revocx35.instalogger.ui.screens.ChatPane
@@ -101,9 +104,11 @@ import kotlinx.serialization.Serializable
 @Serializable object ReelsRoute
 @Serializable object StoriesRoute
 @Serializable object SettingsRoute
+@Serializable object AdminRoute
 
-enum class Tab(val label: String, val icon: ImageVector) {
-    Chats("Chats", WaIcons.chats), Reels("Reels", WaIcons.reels), Stories("Stories", WaIcons.stories), Deleted("Unsent", WaIcons.deleted), Search("Search", WaIcons.search), Instagram("Instagram", WaIcons.monitor), Settings("Settings", WaIcons.settings)
+/** [adminOnly] tabs exist only for the admin (the first account). */
+enum class Tab(val label: String, val icon: ImageVector, val adminOnly: Boolean = false) {
+    Chats("Chats", WaIcons.chats), Reels("Reels", WaIcons.reels), Stories("Stories", WaIcons.stories), Deleted("Unsent", WaIcons.deleted), Search("Search", WaIcons.search), Instagram("Instagram", WaIcons.monitor), Settings("Settings", WaIcons.settings), Admin("Users", WaIcons.group, adminOnly = true)
 }
 
 private fun tabRoute(t: Tab): Any = when (t) {
@@ -114,6 +119,7 @@ private fun tabRoute(t: Tab): Any = when (t) {
     Tab.Stories -> StoriesRoute
     Tab.Instagram -> InstagramRoute
     Tab.Settings -> SettingsRoute
+    Tab.Admin -> AdminRoute
 }
 
 private fun NavHostController.goTab(t: Tab) = navigate(tabRoute(t)) {
@@ -191,12 +197,17 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
         dest.hasRoute<StoriesRoute>() -> Tab.Stories
         dest.hasRoute<InstagramRoute>() -> Tab.Instagram
         dest.hasRoute<SettingsRoute>() -> Tab.Settings
+        dest.hasRoute<AdminRoute>() -> Tab.Admin
         else -> null
     }
     var viewing by remember { mutableStateOf<Message?>(null) }
     val (actions, save) = rememberMediaActions(session, context) { viewing = it }
     val chatList: ChatListViewModel = viewModel(key = "chats:${session.id}") { ChatListViewModel(session) }
     val chatListState = rememberLazyListState()
+    val showAdmin = state.role == UserRole.Admin
+    // The phone bottom rail keeps 7 items; admins open Users from Settings there.
+    val railTabs = Tab.entries.filter { showAdmin || !it.adminOnly }
+    val bottomTabs = Tab.entries.filter { (showAdmin || !it.adminOnly) && it != Tab.Admin }
     val needsAttention = wa?.needsLogin == true
     val sender = remember(session) { ServerSender(context.applicationContext, session.api) }
     val sendBlocked = if (wa?.connected == true) null else "Instagram is not connected right now, so messages can’t be sent."
@@ -271,6 +282,9 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                             val vm: ReelsViewModel = viewModel(key = "reels:${session.id}") { ReelsViewModel(session) }
                             ReelsScreen(vm, session, wa?.connected == true)
                         }
+                        composable<AdminRoute> {
+                            AdminScreen(AdminDeps(session.api, state.username, state.totpEnabled == true))
+                        }
                         composable<SettingsRoute> {
                             SettingsScreen(
                                 SettingsDeps(
@@ -281,6 +295,7 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                                     wa = wa,
                                     refresh = { graph.controller.refresh().join() },
                                     onChangeServer = onChangeServer,
+                                    onOpenAdmin = if (showAdmin) ({ nav.goTab(Tab.Admin) }) else null,
                                 ),
                             )
                         }
@@ -291,13 +306,13 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
 
         if (wide) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
-                SideRail(activeTab, wa, { nav.goTab(it) }, onLogout)
+                SideRail(activeTab, wa, railTabs, { nav.goTab(it) }, onLogout)
                 Column(Modifier.weight(1f).fillMaxHeight(), content = content)
             }
         } else {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
                 content()
-                if (!inChat) BottomRail(activeTab) { if (it == null) onLogout() else nav.goTab(it) }
+                if (!inChat) BottomRail(activeTab, bottomTabs) { if (it == null) onLogout() else nav.goTab(it) }
             }
         }
     }
@@ -307,7 +322,7 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
 
 /** The web's `.rail` on wide screens: menu items on top, Instagram status and log out at the bottom. */
 @Composable
-fun SideRail(active: Tab?, wa: IgStatus?, onTab: (Tab) -> Unit, onLogout: () -> Unit) {
+fun SideRail(active: Tab?, wa: IgStatus?, tabs: List<Tab>, onTab: (Tab) -> Unit, onLogout: () -> Unit) {
     val c = Wa.colors
     Row(Modifier.fillMaxHeight()) {
         Column(
@@ -316,7 +331,7 @@ fun SideRail(active: Tab?, wa: IgStatus?, onTab: (Tab) -> Unit, onLogout: () -> 
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (t in Tab.entries) RailItem(t.label, t.icon, active == t, false, { onTab(t) })
+                for (t in tabs) RailItem(t.label, t.icon, active == t, false, { onTab(t) })
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable { onTab(Tab.Instagram) }.padding(6.dp)) { WaStatePill(wa, compact = true) }
@@ -329,7 +344,7 @@ fun SideRail(active: Tab?, wa: IgStatus?, onTab: (Tab) -> Unit, onLogout: () -> 
 
 /** The rail at the bottom on phones (hidden inside a chat). Log out is in Settings there (no room for a 7th item). */
 @Composable
-fun BottomRail(active: Tab?, onTab: (Tab?) -> Unit) {
+fun BottomRail(active: Tab?, tabs: List<Tab>, onTab: (Tab?) -> Unit) {
     val c = Wa.colors
     Column {
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
@@ -337,7 +352,7 @@ fun BottomRail(active: Tab?, onTab: (Tab?) -> Unit) {
             Modifier.fillMaxWidth().background(c.rail).navigationBarsPadding().padding(horizontal = 6.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            for (t in Tab.entries) RailItem(t.label, t.icon, active == t, true, { onTab(t) }, Modifier.weight(1f))
+            for (t in tabs) RailItem(t.label, t.icon, active == t, true, { onTab(t) }, Modifier.weight(1f))
         }
     }
 }
