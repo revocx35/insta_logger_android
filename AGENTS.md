@@ -60,3 +60,26 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
   (`AuthActions.claim` → `POST /api/auth/claim`), plus the recovery key after an admin reset.
 - `AppState.role` decides whether the Users tab exists. Never rely on that for security: the server checks the admin
   role itself and answers 401/403 to everyone else.
+
+## Multiple accounts (0.6.0)
+- `Prefs.accounts` is the list (id, server URL, allowHttp, user name, addedAt); `Prefs.activeAccountId` the open one.
+  The single saved server of 0.5.0 migrates to `Account.MAIN` and keeps the old secret file names, so an upgrade
+  never signs anyone out (`accounts_ready` makes the migration run once).
+- **One jar and one authentik sign-in per account id**: `SecureCookieJar(context, id)` → `session-<id>.bin`,
+  `KeystoreAuthentikStore(context, id)` → `authentik-<id>.bin`. `AppGraph.accountClient(id)` bundles them with the
+  OkHttp client and caches it; `ServerSession` takes that client. Never put a cookie jar or an `Authentik` instance on
+  `AppGraph` again — that is exactly what used to carry a session across servers.
+- Trusted certificates are per **host** (`certs:<host>` in `wal_prefs`), and `ServerTrust.serverHost` reloads them, so
+  trusting a self-signed certificate for one server does not widen another's.
+- `AppController` owns the flows: `switchTo`, `beginAddAccount`/`cancelAddAccount` (pending id so an authentik sign-in
+  during the probe is stored for the account about to exist), `connect` (dedupes by URL), `removeAccount` (server
+  logout + delete secrets + open the next), `changeServer` (replaces a never-signed-in server, otherwise adds).
+- The account menu (`ui/screens/AccountsScreen.kt`) is rendered by `MainShell` **and** `AppRoot`: the sign-in screens
+  need it too, otherwise an account that is not signed in is a dead end. `AppRoot` wraps `MainShell` in `key(s.id)`.
+- Adding a parameter after `onChangeServer` on `SignupScreen`/`LoginScreen` breaks trailing-lambda callers (the
+  screenshot test passes `{}` last): keep `onAccounts` before `onChangeServer`.
+- Tests: new Robolectric classes need `@Config(sdk = [35])` (with the default `compileSdk 37` Robolectric dies in
+  `FileDescriptorInterceptor` before any test body), and one prefs directory is shared for the class, so clear it in
+  `@Before`. `AccountsTest` covers migration, ordering, labels, file names and per-host certificates.
+- Emulator check without a real server: `scripts/fake-logger-api.py` in the homelab skill answers `/api/state` as
+  "not logged in" until `/api/auth/login` sets a cookie — switching away and back must keep that cookie.
