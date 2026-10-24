@@ -15,19 +15,31 @@ import javax.net.ssl.X509ExtendedTrustManager
 import javax.net.ssl.X509TrustManager
 
 /**
- * TLS trust for the insta_logger server: Android's system CAs first. Self-hosted servers often use a
- * private CA (e.g. Caddy's internal CA when opened by IP address), so the owner can additionally
- * trust specific certificates — a CA file they import or a certificate they confirmed by
- * fingerprint — and only for their configured server host. Hostname verification always stays on.
+ * TLS trust for the insta_logger servers: Android's system CAs first. Self-hosted servers often use a
+ * private CA (e.g. Caddy's internal CA when opened by IP address), so the owner can additionally trust
+ * specific certificates — a CA file they import or a certificate they confirmed by fingerprint — and
+ * only for the host they were trusted for, so one account (or one added server) never widens the trust
+ * of another. Hostname verification always stays on.
  */
 class ServerTrust(private val prefs: Prefs) : X509ExtendedTrustManager() {
     private val system: X509TrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
         .apply { init(null as KeyStore?) }
         .trustManagers.filterIsInstance<X509TrustManager>().first()
 
-    @Volatile var serverHost: String? = null
+    /**
+     * The host whose account is being shown (or the server being added); certificates are loaded for it
+     * alone. Setting it reloads the trusted certificates in the same step.
+     */
+    @Volatile
+    var serverHost: String? = null
+        set(v) {
+            if (field == v) return
+            field = v
+            anchors = load(v)
+            lastRejected = null
+        }
 
-    @Volatile private var anchors: List<X509Certificate> = load()
+    @Volatile private var anchors: List<X509Certificate> = emptyList()
 
     /** The chain of the last connection rejected for our server (shown to the owner for review). */
     @Volatile var lastRejected: List<X509Certificate>? = null
@@ -35,24 +47,27 @@ class ServerTrust(private val prefs: Prefs) : X509ExtendedTrustManager() {
 
     val socketFactory: SSLSocketFactory = SSLContext.getInstance("TLS").apply { init(null, arrayOf(this@ServerTrust), null) }.socketFactory
 
-    private fun load(): List<X509Certificate> = prefs.trustedCerts.mapNotNull { parseCertificate(it) }
+    private fun load(host: String?): List<X509Certificate> = prefs.trustedCerts(host).mapNotNull { parseCertificate(it) }
 
+    /** The certificates trusted for [serverHost] (much like Android's user-installed ones, but scoped). */
     fun trusted(): List<X509Certificate> = anchors
 
     fun add(cert: X509Certificate) {
+        val host = serverHost ?: return
         val list = anchors.filterNot { it.encoded.contentEquals(cert.encoded) } + cert
-        prefs.trustedCerts = list.map { it.encoded }
+        prefs.setTrustedCerts(host, list.map { it.encoded })
         anchors = list
     }
 
     fun remove(cert: X509Certificate) {
+        val host = serverHost ?: return
         val list = anchors.filterNot { it.encoded.contentEquals(cert.encoded) }
-        prefs.trustedCerts = list.map { it.encoded }
+        prefs.setTrustedCerts(host, list.map { it.encoded })
         anchors = list
     }
 
     fun reload() {
-        anchors = load()
+        anchors = load(serverHost)
         lastRejected = null
     }
 

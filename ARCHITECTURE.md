@@ -53,6 +53,30 @@ turn that into "Sign in with authentik" (OAuth 2 + PKCE in a Custom Tab, public 
 `Authorization: Bearer` (refreshed automatically; refresh token Keystore-encrypted, revoked when the server is forgotten).
 The outpost validates it by token introspection. See `docs/authentik.md`.
 
+## Multiple accounts (0.6.0)
+
+`Prefs.accounts` is the list of accounts (id, server URL, HTTP choice, user name), `Prefs.activeAccountId` the one
+being shown; `AppController` owns the switch:
+
+- `open(account)` closes the current `ServerSession` and builds the next one; `ServerSession` gets its own
+  `AccountClient` (`AppGraph.accountClient(id)` = encrypted cookie jar + `Authentik` instance + OkHttp client per
+  account), so a switch never carries a cookie or bearer token across servers. Clients are cached, so switching back is
+  instant and still signed in.
+- `beginAddAccount()` sets an "adding" flag and a pending id; `ServerScreen` shows on top of the open account and probes
+  with that id's client (`pendingAccountId()`), so an authentik sign-in during the check is stored for the account that
+  is about to exist. `connect()` switches to a server already in the list, otherwise saves the account and opens it;
+  `cancelAddAccount()` deletes the pending secrets.
+- `removeAccount()` signs out on the server (best effort), deletes the cookie and authentik files, drops the entry, and
+  opens the next account — or the server screen when none is left. `sweepOrphanSecrets()` removes files of accounts
+  that no longer exist at startup.
+- Trusted certificates moved from one global set to per-host keys (`certs:<host>`); `ServerTrust.serverHost` reloads
+  the anchors of the account (or server being added) whenever it changes.
+- The UI is `ui/screens/AccountsScreen.kt`: `AccountSwitcherDialog` (opened from Settings → Account, the rail's account
+  icon, and after adding a server) and `AccountCard` for the Settings header. `MainShell` keys the whole shell on the
+  session id so tab state and view models never leak between accounts.
+- Migration: the single saved `server_url`/`allow_http`/`trusted_certs` of 0.5.0 become `Account.MAIN`, which keeps the
+  old secret file names; `accounts_ready` makes it run once.
+
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server
 session timeouts apply. Hostile message content: rendered as text only, only http(s) links. Network attacker: TLS

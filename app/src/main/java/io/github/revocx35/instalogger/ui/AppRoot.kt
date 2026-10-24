@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,6 +29,7 @@ import io.github.revocx35.instalogger.data.ServerSession
 import io.github.revocx35.instalogger.media.AudioController
 import io.github.revocx35.instalogger.ui.components.Spinner
 import io.github.revocx35.instalogger.ui.screens.AuthActions
+import io.github.revocx35.instalogger.ui.screens.AccountSwitcherDialog
 import io.github.revocx35.instalogger.ui.screens.CertificateDialog
 import io.github.revocx35.instalogger.ui.screens.LoginScreen
 import io.github.revocx35.instalogger.ui.screens.LoginStep
@@ -52,6 +54,9 @@ private class SessionMediaHost(private val s: ServerSession) : MediaHost {
 /**
  * Decides which screen the owner belongs on, like the web's route guard (`routeFor`):
  * server → signup → login/recover → recovery key → link Instagram → main.
+ *
+ * When another account is being added the server screen comes first and the open account stays in the
+ * background; everything else belongs to the account that is being shown.
  */
 @Composable
 fun AppRoot(graph: AppGraph) {
@@ -62,6 +67,11 @@ fun AppRoot(graph: AppGraph) {
     val error by ctrl.error.collectAsState()
     val wa by ctrl.ig.collectAsState()
     val pendingKey by ctrl.pendingRecoveryKey.collectAsState()
+    val adding by ctrl.adding.collectAsState()
+    val accounts by ctrl.accounts.collectAsState()
+    val activeAccount by ctrl.active.collectAsState()
+    var showAccounts by remember { mutableStateOf(false) }
+    val openAccounts: (() -> Unit)? = if (accounts.size > 1) ({ showAccounts = true }) else null
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val config = LocalConfiguration.current
@@ -69,12 +79,9 @@ fun AppRoot(graph: AppGraph) {
     var recoverMode by rememberSaveable { mutableStateOf(false) }
     var reviewCert by remember { mutableStateOf<X509Certificate?>(null) }
 
-    val changeServer: () -> Unit = {
-        scope.launch {
-            if (ctrl.state.value?.authenticated == true) ctrl.logout()
-            ctrl.forgetServer()
-        }
-    }
+    // "Change server" on the sign-in screens forgets a server that was never signed in on (or adds one
+    // when the open account works); "Add another account" always adds. The account menu switches.
+    val changeServer: () -> Unit = { ctrl.changeServer() }
 
     // Android 17+: e.g. after a system update, a saved home-network server needs local network access first.
     var localNetworkMissing by remember { mutableStateOf(LocalNetwork.missing(context)) }
@@ -88,14 +95,16 @@ fun AppRoot(graph: AppGraph) {
     CompositionLocalProvider(LocalFormatter provides formatter, LocalMediaHost provides host) {
         val st = state
         when {
-            s == null -> ServerScreen(graph) { url, http -> ctrl.setServer(url, http) }
+            adding -> ServerScreen(graph, onCancel = { ctrl.cancelAddAccount() }) { url, http -> ctrl.connect(url, http) }
+            s == null -> ServerScreen(graph) { url, http -> ctrl.connect(url, http) }
             st == null && loading -> Box(Modifier.fillMaxSize().background(Wa.colors.bg), contentAlignment = Alignment.Center) { Spinner(32.dp) }
             st == null && error?.code == ApiException.AUTHENTIK -> AuthentikScreen(
                 graph,
-                s.baseUrl,
+                s,
                 error?.authentikLocation(),
                 onSignedIn = { ctrl.refresh() },
                 onChangeServer = changeServer,
+                onAccounts = openAccounts,
             )
             st == null -> UnreachableScreen(
                 error?.userMessage,
@@ -108,6 +117,7 @@ fun AppRoot(graph: AppGraph) {
                 },
                 busy = loading,
                 onAllowLocalNetwork = if (localNetworkMissing && error?.code == ApiException.NETWORK) askLocalNetwork else null,
+                onAccounts = openAccounts,
             )
             else -> {
                 val auth = remember(s) {
@@ -142,11 +152,12 @@ fun AppRoot(graph: AppGraph) {
                 }
                 val logout: () -> Unit = { scope.launch { ctrl.logout() } }
                 when {
-                    !st.hasOwner -> SignupScreen(auth, changeServer)
-                    !st.authenticated -> if (recoverMode) RecoverScreen(auth) { recoverMode = false } else LoginScreen(auth, { recoverMode = true }, changeServer)
+                    !st.hasOwner -> SignupScreen(auth, onAccounts = openAccounts, onChangeServer = changeServer)
+                    !st.authenticated -> if (recoverMode) RecoverScreen(auth) { recoverMode = false } else LoginScreen(auth, { recoverMode = true }, onAccounts = openAccounts, onChangeServer = changeServer)
                     pendingKey != null -> SetupRecoveryScreen(pendingKey) { ctrl.pendingRecoveryKey.value = null; recoverMode = false }
                     !st.onboardingComplete -> SetupLinkScreen(s.api, wa, onComplete = { s.api.completeOnboarding(); ctrl.refresh().join() }, onLogout = logout)
-                    else -> MainShell(graph, s, st, wa, onLogout = logout, onChangeServer = changeServer)
+                    // key(): the tabs, their navigation state and view models belong to one account.
+                    else -> key(s.id) { MainShell(graph, s, st, wa, onLogout = logout, onChangeServer = changeServer) }
                 }
             }
         }
@@ -172,6 +183,16 @@ fun AppRoot(graph: AppGraph) {
             ctrl.refresh()
         }, onCancel = { reviewCert = null })
     }
+
+    // The account menu from a sign-in screen (the main shell has its own copy inside the tabs).
+    if (showAccounts) {
+        AccountSwitcherDialog(
+            accounts = accounts,
+            active = activeAccount,
+            onSwitch = { a -> showAccounts = false; ctrl.switchTo(a.id) },
+            onAdd = { showAccounts = false; ctrl.beginAddAccount() },
+            onRemove = { a -> ctrl.removeAccount(a) },
+            onClose = { showAccounts = false },
+        )
+    }
 }
-
-

@@ -17,12 +17,17 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Cookie jar for the insta_logger session cookie. The cookie unlocks the owner's private key on the
- * server, so it is only ever written to disk encrypted with a non-exportable AES-256-GCM key in the
- * Android Keystore (and the app excludes its data from backups).
+ * Cookie jar for one account's insta_logger session cookie. The cookie unlocks the owner's private key
+ * on the server, so it is only ever written to disk encrypted with a non-exportable AES-256-GCM key in
+ * the Android Keystore (and the app excludes its data from backups).
+ *
+ * Every account has its own file ([accountId] in the name), so switching between accounts keeps each
+ * server signed in without ever sending one server's cookie to another. [Account.MAIN] — the account
+ * migrated from the single-server 0.5.0 builds — keeps the old file name, so an update does not sign
+ * the owner out; the Keystore key is shared by all accounts.
  */
-class SecureCookieJar(context: Context) : CookieJar {
-    private val file = File(context.noBackupFilesDir, "session.bin")
+class SecureCookieJar(context: Context, accountId: String? = null) : CookieJar {
+    private val file = File(context.noBackupFilesDir, fileName(accountId))
     private val cookies = ArrayList<Cookie>()
     private var loaded = false
 
@@ -75,7 +80,7 @@ class SecureCookieJar(context: Context) : CookieJar {
         val json = Json.encodeToString(ListSerializer(Stored.serializer()), persistent.map { Stored(it.name, it.value, it.expiresAt, it.domain, it.path, it.secure, it.httpOnly, it.hostOnly) })
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
-        val tmp = File(file.parentFile, "session.bin.tmp")
+        val tmp = File(file.parentFile, "${file.name}.tmp")
         tmp.writeBytes(cipher.iv + cipher.doFinal(json.toByteArray()))
         tmp.renameTo(file)
     }
@@ -111,8 +116,14 @@ class SecureCookieJar(context: Context) : CookieJar {
         return gen.generateKey()
     }
 
-    private companion object {
-        const val ALIAS = "wal_session_cookie"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
+    companion object {
+        private const val ALIAS = "wal_session_cookie"
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+
+        /** `session.bin` for the account carried over from 0.5.0, `session-<id>.bin` for the others. */
+        internal fun fileName(accountId: String?): String =
+            if (accountId == null || accountId == Account.MAIN) "session.bin" else "session-${safe(accountId)}.bin"
+
+        private fun safe(id: String) = id.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64).ifEmpty { "account" }
     }
 }

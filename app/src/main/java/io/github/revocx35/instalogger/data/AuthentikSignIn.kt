@@ -27,11 +27,12 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * The authentik sign-in (refresh + access token), written to disk only encrypted with a non-exportable
- * AES-256-GCM key in the Android Keystore, like [SecureCookieJar]. Never throws.
+ * The authentik sign-in (refresh + access token) of one account, written to disk only encrypted with a
+ * non-exportable AES-256-GCM key in the Android Keystore, like [SecureCookieJar]. Every account has its
+ * own file ([accountId] in the name; [Account.MAIN] keeps the 0.5.0 file name). Never throws.
  */
-class KeystoreAuthentikStore(context: Context) : AuthentikTokenStore {
-    private val file = File(context.noBackupFilesDir, "authentik.bin")
+class KeystoreAuthentikStore(context: Context, accountId: String? = null) : AuthentikTokenStore {
+    private val file = File(context.noBackupFilesDir, fileName(accountId))
 
     override fun load(): AuthentikTokens? = runCatching {
         if (!file.exists()) return null
@@ -49,7 +50,7 @@ class KeystoreAuthentikStore(context: Context) : AuthentikTokenStore {
             }
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, key())
-            val tmp = File(file.parentFile, "authentik.bin.tmp")
+            val tmp = File(file.parentFile, "${file.name}.tmp")
             tmp.writeBytes(cipher.iv + cipher.doFinal(tokens.toJson().toByteArray()))
             tmp.renameTo(file)
         }.onFailure { file.delete() }
@@ -72,6 +73,13 @@ class KeystoreAuthentikStore(context: Context) : AuthentikTokenStore {
     private companion object {
         const val ALIAS = "igl_authentik"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
+
+        /** `authentik.bin` for the account carried over from 0.5.0, `authentik-<id>.bin` for the others. */
+        private fun fileName(accountId: String?): String {
+            if (accountId == null || accountId == Account.MAIN) return "authentik.bin"
+            val safe = accountId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64).ifEmpty { "account" }
+            return "authentik-$safe.bin"
+        }
     }
 }
 

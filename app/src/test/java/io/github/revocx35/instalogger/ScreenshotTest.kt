@@ -213,10 +213,10 @@ class ScreenshotTest {
     }
 
     @Test
-    fun phoneLogin() = shot("phone_login") { LoginScreen(noAuth, {}, {}) }
+    fun phoneLogin() = shot("phone_login") { LoginScreen(noAuth, {}, onChangeServer = {}) }
 
     @Test
-    fun phoneSignupDark() = shot("phone_signup_dark", dark = true) { SignupScreen(noAuth) {} }
+    fun phoneSignupDark() = shot("phone_signup_dark", dark = true) { SignupScreen(noAuth, onChangeServer = {}) }
 
     @Test
     fun phoneRecoveryKey() = shot("phone_recovery_key") { SetupRecoveryScreen("ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567-ABCD-EFGH-IJKL-MNOP-QR") {} }
@@ -225,7 +225,7 @@ class ScreenshotTest {
     @Test
     fun tabletTwoPane() = shot("tablet_two_pane") {
         Row(Modifier.fillMaxSize()) {
-            SideRail(Tab.Chats, SampleData.ready, phoneTabs, {}, {})
+            SideRail(Tab.Chats, SampleData.ready, phoneTabs, {}, {}, null, {})
             ChatListPane(FakeChatList(SampleData.chats), SampleData.ALI, {}, {}, Modifier.widthIn(min = 300.dp, max = 440.dp).width(400.dp).fillMaxHeight())
             Box(Modifier.width(1.dp).fillMaxHeight().background(Wa.colors.border))
             ChatPane(FakeChat(aliSummary, SampleData.aliChat), null, true, NoMessageActions, Modifier.weight(1f).fillMaxHeight())
@@ -271,7 +271,7 @@ class ScreenshotTest {
             { _, _, _ -> },
             { _, _, _, _ -> },
         )
-        compose.setContent { WaTheme(dark = false) { LoginScreen(claimAuth, {}, {}) } }
+        compose.setContent { WaTheme(dark = false) { LoginScreen(claimAuth, {}, onChangeServer = {}) } }
         compose.onAllNodes(hasSetTextAction())[0].performTextInput("friend")
         compose.onAllNodes(hasSetTextAction())[1].performTextInput("Temp-Password-Issued-By-Admin")
         compose.onNode(hasText("Log in") and hasClickAction()).performClick()

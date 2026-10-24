@@ -59,6 +59,7 @@ import io.github.revocx35.instalogger.core.TotpSetupResponse
 import io.github.revocx35.instalogger.core.IgStatus
 import io.github.revocx35.instalogger.core.userMessage
 import io.github.revocx35.instalogger.data.AppGraph
+import io.github.revocx35.instalogger.data.Account
 import io.github.revocx35.instalogger.data.ServerTrust
 import io.github.revocx35.instalogger.media.AutoSaver
 import io.github.revocx35.instalogger.ui.LocalFormatter
@@ -125,6 +126,12 @@ class SettingsDeps(
     val onChangeServer: () -> Unit,
     /** Admin only: opens the Users page (users, ports, admin log). Null for everyone else. */
     val onOpenAdmin: (() -> Unit)? = null,
+    /** Multi-account: the open account, everything added on this phone, and the account menu. */
+    val account: Account? = null,
+    val accounts: List<Account> = emptyList(),
+    val onOpenAccounts: () -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onRemoveAccount: (Account) -> Unit = {},
 )
 
 @Composable
@@ -132,7 +139,7 @@ fun SettingsScreen(deps: SettingsDeps) {
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val positions = remember { mutableStateMapOf<String, Int>() }
-    val toc = listOf("password" to "Password", "2fa" to "2FA", "recovery" to "Recovery key", "sessions" to "Sessions", "logging" to "Logging", "instagram" to "Instagram", "audit" to "Security log", "danger" to "Danger zone", "app" to "App")
+    val toc = listOf("account" to "Account", "password" to "Password", "2fa" to "2FA", "recovery" to "Recovery key", "sessions" to "Sessions", "logging" to "Logging", "instagram" to "Instagram", "audit" to "Security log", "danger" to "Danger zone", "app" to "App")
     fun Modifier.anchor(id: String) = onGloballyPositioned { positions[id] = it.positionInParent().y.toInt() }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Wa.colors.panel)) {
@@ -145,6 +152,7 @@ fun SettingsScreen(deps: SettingsDeps) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((id, label) in toc) FilterChip(label, false) { scope.launch { positions[id]?.let { scroll.animateScrollTo(it) } } }
             }
+            Column(Modifier.anchor("account")) { AccountSection(deps) }
             Column(Modifier.anchor("password")) { PasswordSection(deps) }
             Column(Modifier.anchor("2fa")) { TotpSection(deps) }
             Column(Modifier.anchor("recovery")) { RecoverySection(deps) }
@@ -155,6 +163,26 @@ fun SettingsScreen(deps: SettingsDeps) {
             Column(Modifier.anchor("danger")) { DangerSection(deps) }
             Column(Modifier.anchor("app")) { AppSection(deps) }
         }
+    }
+}
+
+@Composable
+private fun AccountSection(d: SettingsDeps) {
+    SectionCard("Account") {
+        AccountCard(d.account, d.username, d.api.baseUrl.toString().removeSuffix("/"), d.accounts.size, onOpen = d.onOpenAccounts)
+        MutedText(
+            if (d.accounts.size > 1) {
+                "${d.accounts.size} accounts on this phone. Switching keeps each server signed in; only the sign-in screens of the other account are shown again."
+            } else {
+                "Add a second account (another server, or another user of the same one) to switch between them here — no need to sign out."
+            },
+            style = WaType.small,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (d.accounts.size > 1) WaButton("Switch account", d.onOpenAccounts, style = BtnStyle.Primary, icon = WaIcons.user)
+            WaButton("Add another account", d.onAddAccount, style = if (d.accounts.size > 1) BtnStyle.Ghost else BtnStyle.Primary, icon = WaIcons.plus)
+        }
+        if (!d.api.baseUrl.isHttps) MutedText("This account uses an unencrypted HTTP connection — only use it inside your own network.", style = WaType.small)
     }
 }
 
@@ -459,7 +487,10 @@ private fun AppSection(d: SettingsDeps) {
         d.onOpenAdmin?.let { open ->
             WaButton("Users and ports", open, style = BtnStyle.Ghost, icon = WaIcons.group)
         }
-        WaButton("Change server", d.onChangeServer, style = BtnStyle.Ghost, icon = WaIcons.server)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            WaButton("Accounts", d.onOpenAccounts, style = BtnStyle.Ghost, icon = WaIcons.user)
+            WaButton("Add another server", d.onAddAccount, style = BtnStyle.Ghost, icon = WaIcons.server)
+        }
         SwitchRow(secure, { graph?.prefs?.setSecureScreen(it) }, "Block screenshots and hide the app in the recent-apps preview")
         if (graph != null) AutoSaveSettings(graph, d.api)
         Text("Trusted certificates", style = WaType.base.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), color = c.text)

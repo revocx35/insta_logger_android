@@ -32,9 +32,14 @@ Through the same server API as the web UI (`shared/api.d.ts` of insta_logger):
 - **Stories:** the stories of the accounts you follow that the server logged (turn on in Settings → Logging, choose
   how many days to keep them, how often to check, everyone or chosen accounts): filter by account, grid, full-screen
   viewer, *Check now*. Never marked as seen.
+- **Multi-account:** add as many servers (or users on a server) as you like and switch between them from
+  **Settings → Account** (or the account icon at the bottom of the tablet rail) — each keeps its own sign-in, so
+  switching does not sign anything out. **Add another account** opens the same server screen; **Change server** there replaces a
+  server you never signed in on (a mistyped address leaves nothing behind) or adds one once your account works, and
+  **Switch account** goes back to any account already added.
 - **Unsent** feed, global **Search**, **Instagram** (live view of the server's browser: tap = click, drag = scroll,
-  pinch = zoom, keyboard, view-only switch, restart, log out), **Settings** (password, 2FA, recovery key, sessions,
-  logging options, background session refresh, Instagram connection, security log, wipe).
+  pinch = zoom, keyboard, view-only switch, restart, log out), **Settings** (account, password, 2FA, recovery key,
+  sessions, logging options, background session refresh, Instagram connection, security log, wipe).
 - **Live updates** over the server's event stream while the app is open.
 - Phones get the bottom menu, tablets / landscape (≥ 900 dp) get the side rail and two panes.
 
@@ -48,6 +53,28 @@ disable them, reset their password (they need their recovery key) or wipe/delete
 
 In the app the admin gets a **Users** tab (side rail on tablets, *Settings → Users and ports* on phones) with the user
 list, the ports and the admin log. Everyone else never sees it.
+
+## Multiple accounts (0.6.0)
+
+One phone can hold several insta_logger accounts — another server (the homelab box and the VPS, say) or another
+user on the same server — and switch between them without signing out:
+
+- **Where:** the **Account** section at the top of Settings shows the account you are in (name, server address);
+  tapping it, **Switch account**, or the account icon at the bottom of the tablet rail opens the account menu. Each
+  account in the menu shows its user name and server, with the open one marked; **Add another account** goes to the
+  server screen (where you can check the address, trust a certificate and sign in with authentik before saving).
+- **Switching** closes the current session and opens the other one with its own cookie and authentik tokens. Nothing
+  is signed out, and the tab state is rebuilt for the account (`key(session.id)`), so a chat opened on one server never
+  shows the other's data.
+- **Secrets stay apart:** `SecureCookieJar` and `KeystoreAuthentikStore` are created per account id
+  (`session-<id>.bin`, `authentik-<id>.bin`, all encrypted with the one Keystore AES-GCM key), and a removed account's
+  files are deleted. Trusted certificates are stored **per host**, so trusting a self-signed certificate for one server
+  never widens trust for another.
+- **Migration:** an install with the single saved server becomes the first account (`Account.MAIN`), which keeps the
+  old file names (`session.bin`, `authentik.bin`) and its trusted certificates — updating does not sign anyone out or
+  ask for a certificate again.
+- **Adding a server** uses an id before it is saved, so the "add another server" screen already has its own cookie jar
+  and authentik store for probing and signing in; cancel simply deletes them.
 
 ## Install
 

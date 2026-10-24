@@ -125,7 +125,7 @@ class AuthActions(
 )
 
 @Composable
-fun SignupScreen(actions: AuthActions, onChangeServer: () -> Unit) {
+fun SignupScreen(actions: AuthActions, onAccounts: (() -> Unit)? = null, onChangeServer: () -> Unit) {
     var token by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -159,12 +159,12 @@ fun SignupScreen(actions: AuthActions, onChangeServer: () -> Unit) {
         Note("Your logs are encrypted with a key derived from this password. If you lose both the password and the recovery key, the logged data cannot be recovered by anyone.", WaIcons.lock)
         ErrorNote(error)
         WaButton("Create account", submit, style = BtnStyle.Primary, block = true, busy = busy, enabled = token.isNotBlank() && username.length >= 3 && password.length >= 12)
-        ServerFooter(onChangeServer)
+        ServerFooter(onChangeServer, onAccounts)
     }
 }
 
 @Composable
-fun LoginScreen(actions: AuthActions, onRecover: () -> Unit, onChangeServer: () -> Unit) {
+fun LoginScreen(actions: AuthActions, onRecover: () -> Unit, onAccounts: (() -> Unit)? = null, onChangeServer: () -> Unit) {
     var username by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var totp by remember { mutableStateOf("") }
@@ -237,7 +237,7 @@ fun LoginScreen(actions: AuthActions, onRecover: () -> Unit, onChangeServer: () 
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             LinkButton("Forgot your password?", onRecover, style = WaType.small)
         }
-        ServerFooter(onChangeServer)
+        ServerFooter(onChangeServer, onAccounts)
     }
 }
 
@@ -334,16 +334,20 @@ fun SetupRecoveryScreen(recoveryKey: String?, onContinue: () -> Unit) {
     }
 }
 
+/** Footer of the sign-in screens: change (add) the server, and — with more than one account — switch to another. */
 @Composable
-fun ServerFooter(onChangeServer: () -> Unit) {
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        LinkButton("Change server", onChangeServer, style = WaType.small, color = Wa.colors.muted, icon = WaIcons.server)
+fun ServerFooter(onChangeServer: () -> Unit, onAccounts: (() -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (onAccounts != null) LinkButton("Switch account", onAccounts, style = WaType.small, color = Wa.colors.muted, icon = WaIcons.user)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            LinkButton("Change server", onChangeServer, style = WaType.small, color = Wa.colors.muted, icon = WaIcons.server)
+        }
     }
 }
 
 /** Full-screen message when the server can't be reached (like the web's fallback). */
 @Composable
-fun UnreachableScreen(error: String?, onRetry: () -> Unit, onChangeServer: () -> Unit, onReviewCertificate: (() -> Unit)?, busy: Boolean, onAllowLocalNetwork: (() -> Unit)? = null) {
+fun UnreachableScreen(error: String?, onRetry: () -> Unit, onChangeServer: () -> Unit, onReviewCertificate: (() -> Unit)?, busy: Boolean, onAllowLocalNetwork: (() -> Unit)? = null, onAccounts: (() -> Unit)? = null) {
     val c = Wa.colors
     Column(
         Modifier.fillMaxSize().background(c.bg).statusBarsPadding().padding(24.dp),
@@ -359,6 +363,7 @@ fun UnreachableScreen(error: String?, onRetry: () -> Unit, onChangeServer: () ->
             WaButton("Allow local network access", onAllowLocalNetwork, style = BtnStyle.Primary)
         }
         WaButton("Retry", onRetry, busy = busy)
+        if (onAccounts != null) LinkButton("Switch account", onAccounts, style = WaType.small, color = c.muted, icon = WaIcons.user)
         LinkButton("Change server", onChangeServer, style = WaType.small, color = c.muted, icon = WaIcons.server)
     }
 }

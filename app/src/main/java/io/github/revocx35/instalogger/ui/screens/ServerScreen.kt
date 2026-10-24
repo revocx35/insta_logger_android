@@ -1,5 +1,6 @@
 package io.github.revocx35.instalogger.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -17,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -85,15 +87,19 @@ fun CertificateDialog(host: String, cert: X509Certificate, onTrust: () -> Unit, 
 }
 
 /**
- * First screen: where is the insta_logger server? Probes `/api/state` before saving, handles
- * HTTP→HTTPS redirects, untrusted certificates (trust on first use or an imported CA) and makes
- * plain HTTP to a public address an explicit choice.
+ * Where is the insta_logger server? Probes `/api/state` before saving, handles HTTP→HTTPS redirects,
+ * untrusted certificates (trust on first use or an imported CA) and makes plain HTTP to a public address
+ * an explicit choice.
+ *
+ * [onCancel] is set while an account is already open and the owner adds another one: the current
+ * account stays signed in in the background, and the server being added keeps nothing on the phone
+ * unless "Connect" succeeds. Certificates trusted here are remembered for that server's host only.
  */
 @Composable
-fun ServerScreen(graph: AppGraph, onConnected: (HttpUrl, Boolean) -> Unit) {
+fun ServerScreen(graph: AppGraph, initial: String? = null, onCancel: (() -> Unit)? = null, onConnected: (HttpUrl, Boolean) -> Unit) {
     val c = Wa.colors
     val context = LocalContext.current
-    var address by rememberSaveable { mutableStateOf(graph.prefs.serverUrl ?: graph.controller.previousServerUrl?.removeSuffix("/") ?: "") }
+    var address by rememberSaveable { mutableStateOf(initial.orEmpty()) }
     var allowHttp by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -104,6 +110,12 @@ fun ServerScreen(graph: AppGraph, onConnected: (HttpUrl, Boolean) -> Unit) {
     val url = parseServerUrl(address)
     val insecure = url != null && !url.isHttps
     val publicHttp = url != null && !url.isHttps && !isLocalHost(url.host)
+    // The server being added already has an account id (and so its own cookie jar and authentik
+    // sign-in) before it is saved: connect first, keep it only when /api/state answers.
+    val accountId = remember { graph.controller.pendingAccountId() }
+    val client = remember(accountId) { graph.accountClient(accountId) }
+    val adding = onCancel != null
+    onCancel?.let { cancel -> BackHandler(onBack = cancel) }
 
     fun probeNow(target: HttpUrl) {
         busy = true
@@ -112,7 +124,7 @@ fun ServerScreen(graph: AppGraph, onConnected: (HttpUrl, Boolean) -> Unit) {
         graph.trust.serverHost = target.host
         scope.launch {
             try {
-                ApiClient(graph.baseClient, target).probe()
+                ApiClient(client.http, target).probe()
                 onConnected(target, insecure)
             } catch (e: ApiException) {
                 val rejected = graph.trust.lastRejected
@@ -165,7 +177,14 @@ fun ServerScreen(graph: AppGraph, onConnected: (HttpUrl, Boolean) -> Unit) {
         }
     }
 
-    AuthShell("Connect to your server", "Enter the address of your insta_logger server — the same address you open in the browser.") {
+    AuthShell(
+        if (adding) "Add another server" else "Connect to your server",
+        if (adding) {
+            "Switch between your servers from the account menu (tap your name in Settings). Your current account stays signed in on this phone."
+        } else {
+            "Enter the address of your insta_logger server — the same address you open in the browser."
+        },
+    ) {
         WaTextField(
             address,
             { address = it.trim(); error = null },
@@ -185,13 +204,18 @@ fun ServerScreen(graph: AppGraph, onConnected: (HttpUrl, Boolean) -> Unit) {
         }
         ErrorNote(error)
         authentikAt?.let { (target, location) ->
-            if (target == url) AuthentikPanel(graph, target, location) { probe(target) }
+            if (target == url) AuthentikPanel(graph, client.authentik, client.http, target, location) { probe(target) }
         }
         if (error?.contains(LocalNetwork.HELP) == true && url != null && LocalNetwork.missing(context)) {
             WaButton("Allow local network access", { pending = url; askLocalNetwork() }, block = true)
         }
         WaButton("Connect", { url?.let { probe(it) } }, style = BtnStyle.Primary, block = true, busy = busy, enabled = url != null && (!publicHttp || allowHttp))
         LinkButton("Import a CA certificate…", { importCa.launch(arrayOf("*/*")) }, style = WaType.small, color = c.muted, icon = WaIcons.shield)
+        if (onCancel != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                LinkButton("Cancel", onCancel, style = WaType.small, color = c.muted, icon = WaIcons.back)
+            }
+        }
     }
 
     reviewCert?.let { (target, cert) ->
