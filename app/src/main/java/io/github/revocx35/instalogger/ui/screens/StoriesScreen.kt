@@ -1,6 +1,11 @@
 package io.github.revocx35.instalogger.ui.screens
 
 import androidx.compose.foundation.background
+import io.github.revocx35.instalogger.core.formatAgo
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,7 +74,7 @@ import io.github.revocx35.instalogger.ui.theme.WaIcons
 import io.github.revocx35.instalogger.ui.theme.WaType
 import kotlinx.coroutines.launch
 
-private val RING = Brush.linearGradient(listOf(Color(0xFFFEDA75), Color(0xFFFA7E1E), Color(0xFFD62976), Color(0xFF962FBF), Color(0xFF4F5BD5)))
+private val RING = Brush.linearGradient(listOf(Color(0xFFFFD600), Color(0xFFFF7A00), Color(0xFFFF0069), Color(0xFFD300C5), Color(0xFF7638FA)), start = androidx.compose.ui.geometry.Offset(0f, Float.POSITIVE_INFINITY), end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f))
 
 /** Logged stories (`/api/stories…`): status, authors, items. */
 class StoriesViewModel(private val session: ServerSession) : ViewModel() {
@@ -152,18 +157,18 @@ fun StoriesScreen(vm: StoriesViewModel, session: ServerSession, connected: Boole
     var open by remember { mutableStateOf<Int?>(null) }
     val status = vm.status
     LazyVerticalGrid(
-        GridCells.Adaptive(110.dp),
+        GridCells.Adaptive(120.dp),
         Modifier.fillMaxSize().background(c.panel).statusBarsPadding(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Stories", style = WaType.paneTitle, color = c.text, modifier = Modifier.weight(1f))
                     if (status?.enabled == true) {
-                        WaButton("Check now", { vm.checkNow() }, style = BtnStyle.Ghost, icon = WaIcons.refresh, busy = vm.checking, enabled = connected)
+                        WaButton("Check now", { vm.checkNow() }, icon = WaIcons.refresh, busy = vm.checking, enabled = connected)
                     } else {
                         WaButton("Turn on", onSettings, style = BtnStyle.Primary)
                     }
@@ -182,27 +187,41 @@ fun StoriesScreen(vm: StoriesViewModel, session: ServerSession, connected: Boole
         }
         if (vm.authors.isNotEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                    item { AuthorChip(null, "All", null, vm.user == null) { vm.select(null) } }
-                    items(vm.authors, key = { it.id }) { a ->
-                        AuthorChip(a, a.username ?: a.id, a.avatarUrl, vm.user == a.id) { vm.select(a.id) }
+                Column {
+                    // Instagram's stories bar: gradient rings, the name under each.
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
+                        item { AuthorChip(null, "All", null, vm.user == null) { vm.select(null) } }
+                        items(vm.authors, key = { it.id }) { a ->
+                            AuthorChip(a, a.username ?: a.id, a.avatarUrl, vm.user == a.id) { vm.select(a.id) }
+                        }
                     }
+                    Box(Modifier.fillMaxWidth().padding(bottom = 2.dp).height(1.dp).background(c.border))
                 }
             }
         }
         itemsIndexed(vm.items, key = { _, s -> s.id }) { i, s ->
-            Box(Modifier.aspectRatio(9f / 16f).clip(RoundedCornerShape(10.dp)).background(Color(0xFF111111)).clickable { open = i }) {
+            // A tile of Instagram's story archive: the day in a white box at the top left.
+            Box(Modifier.aspectRatio(9f / 16f).background(Color(0xFF121212)).clickable { open = i }) {
                 if (s.url != null && s.type == "image") {
                     AsyncImage(session.mediaUrl(s.url), null, imageLoader = session.imageLoader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else if (s.url == null) {
                     Text(if (s.status == "too_large") "Too large" else if (s.status == "pending") "Downloading…" else "Not saved", style = WaType.small, color = Color(0xFFBBBBBB), modifier = Modifier.align(Alignment.Center))
                 }
-                if (s.type == "video") WaIcon(WaIcons.play, 28.dp, Color.White, Modifier.align(Alignment.Center))
+                val day = java.time.Instant.ofEpochMilli(s.takenAt).atZone(java.time.ZoneId.systemDefault())
                 Column(
-                    Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000)))).padding(6.dp),
+                    Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color.White).padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(s.username ?: s.userId, style = WaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(fmt.listTime(s.takenAt), style = WaType.tiny, color = Color(0xDDFFFFFF))
+                    Text("${day.dayOfMonth}", style = WaType.base.copy(fontSize = 15.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold), color = Color.Black)
+                    Text(day.month.getDisplayName(java.time.format.TextStyle.SHORT, androidx.compose.ui.platform.LocalLocale.current.platformLocale).uppercase(), style = WaType.tiny.copy(fontSize = 9.sp, lineHeight = 10.sp), color = Color.Black)
+                }
+                if (s.type == "video") WaIcon(WaIcons.reels, 18.dp, Color.White, Modifier.align(Alignment.TopEnd).padding(8.dp))
+                Row(
+                    Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000)))).padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(s.username ?: s.userId, style = WaType.tiny.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(formatAgo(s.takenAt), style = WaType.tiny, color = Color(0xCCFFFFFF))
                 }
             }
         }
@@ -214,82 +233,140 @@ fun StoriesScreen(vm: StoriesViewModel, session: ServerSession, connected: Boole
                         MutedText(if (status?.enabled == true) "New stories of the accounts you follow appear here after the next check." else "Turn on story logging in Settings → Logging.")
                     }
                 }
-                if (!vm.loading && vm.next != null) WaButton("Older stories", { vm.more() }, style = BtnStyle.Ghost)
+                if (!vm.loading && vm.next != null) WaButton("Older stories", { vm.more() }, Modifier.padding(top = 12.dp))
             }
         }
     }
-    open?.let { i -> if (i in vm.items.indices) StoryViewer(vm.items, i, session, { open = it }) { open = null } }
+    open?.let { i ->
+        if (i in vm.items.indices) StoryViewer(vm.items, i, session, { id -> vm.authors.firstOrNull { it.id == id }?.avatarUrl }, { open = it }) { open = null }
+    }
 }
 
 @Composable
 private fun AuthorChip(a: StoryAuthor?, label: String, avatar: String?, selected: Boolean, onClick: () -> Unit) {
     val c = Wa.colors
-    Column(Modifier.width(68.dp).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.size(62.dp).clip(CircleShape).background(RING).padding(3.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.fillMaxSize().clip(CircleShape).border(2.dp, c.panel, CircleShape), contentAlignment = Alignment.Center) {
-                if (a == null) WaIcon(WaIcons.stories, 26.dp, Color.White) else Avatar(a.id, label, avatar, size = 54.dp)
+    Column(Modifier.width(72.dp).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box {
+            val ring = if (a == null && !selected) Brush.linearGradient(listOf(c.border, c.border)) else RING
+            Box(Modifier.size(66.dp).clip(CircleShape).background(ring).padding(2.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(c.panel).padding(2.dp), contentAlignment = Alignment.Center) {
+                    if (a == null) {
+                        Box(Modifier.fillMaxSize().clip(CircleShape).background(c.panel2), contentAlignment = Alignment.Center) { WaIcon(WaIcons.stories, 28.dp, c.text) }
+                    } else {
+                        Avatar(a.id, label, avatar, size = 58.dp)
+                    }
+                }
+            }
+            if (a != null) {
+                Text(
+                    "${a.count}",
+                    style = WaType.tiny.copy(fontWeight = FontWeight.SemiBold),
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(10.dp)).background(c.panel).padding(2.dp)
+                        .clip(RoundedCornerShape(8.dp)).background(c.like).padding(horizontal = 5.dp),
+                )
             }
         }
-        Text(label, style = WaType.tiny.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (a != null) MutedText("${a.count}", style = WaType.tiny)
+        Text(label, style = WaType.tiny.copy(fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
-/** Full-screen viewer: tap left/right for previous/next, videos play and move on when they end. */
+/** How long a photo story stays before moving on (Instagram uses about 5 s). */
+private const val PHOTO_MS = 5000L
+
+/**
+ * Instagram's story viewer: progress bars for this account's run of stories, avatar + name + age, tap the left or
+ * right side to go back or on, tap the middle to pause; photos move on after 5 s, videos when they end.
+ */
 @Composable
-private fun StoryViewer(items: List<StoryItem>, index: Int, session: ServerSession, onIndex: (Int) -> Unit, onClose: () -> Unit) {
+private fun StoryViewer(items: List<StoryItem>, index: Int, session: ServerSession, avatarOf: (String) -> String?, onIndex: (Int) -> Unit, onClose: () -> Unit) {
     val s = items[index]
-    val fmt = LocalFormatter.current
     val context = LocalContext.current
     val player = remember(session) { buildPlayer(context, session.api.http) }
+    var paused by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
     DisposableEffect(player) { onDispose { player.release() } }
+    val next = { if (index < items.size - 1) onIndex(index + 1) else onClose() }
     LaunchedEffect(s.id) {
+        progress = 0f
         val url = s.url?.let { session.mediaUrl(it) }
         if (s.type == "video" && url != null) {
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
-            player.playWhenReady = true
+            player.playWhenReady = !paused
         } else {
             player.stop()
+        }
+    }
+    LaunchedEffect(paused) { player.playWhenReady = !paused }
+    // Progress: a timer for photos, the player's position for videos.
+    LaunchedEffect(s.id, paused) {
+        if (paused) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(50)
+            if (s.type == "video") {
+                val d = player.duration
+                if (d > 0) progress = (player.currentPosition.toFloat() / d).coerceIn(0f, 1f)
+            } else if (s.url != null) {
+                progress += 50f / PHOTO_MS
+                if (progress >= 1f) {
+                    next()
+                    break
+                }
+            }
         }
     }
     DisposableEffect(player, index) {
         val l = object : androidx.media3.common.Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == androidx.media3.common.Player.STATE_ENDED && index < items.size - 1) onIndex(index + 1)
+                if (state == androidx.media3.common.Player.STATE_ENDED) next()
             }
         }
         player.addListener(l)
         onDispose { player.removeListener(l) }
     }
+    var first = index
+    while (first > 0 && items[first - 1].userId == s.userId) first--
+    var last = index
+    while (last < items.size - 1 && items[last + 1].userId == s.userId) last++
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             val url = s.url?.let { session.mediaUrl(it) }
             when {
                 url == null -> Text("This story was not saved.", color = Color.White, modifier = Modifier.align(Alignment.Center))
                 s.type == "video" -> AndroidView(
-                    factory = { PlayerView(it).apply { useController = true } },
+                    factory = { PlayerView(it).apply { useController = false } },
                     update = { it.player = player },
                     onRelease = { it.player = null },
                     modifier = Modifier.fillMaxSize(),
                 )
-                else -> AsyncImage(url, null, imageLoader = session.imageLoader, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                else -> AsyncImage(url, null, imageLoader = session.imageLoader, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
-            // Tap zones for previous / next (images; videos keep their controls in the middle).
-            Row(Modifier.fillMaxSize().padding(top = 64.dp, bottom = 96.dp)) {
-                Box(Modifier.weight(1f).fillMaxSize().clickable(onClickLabel = "Previous story", enabled = index > 0) { onIndex(index - 1) })
-                Box(Modifier.weight(if (s.type == "video") 2f else 0.01f).fillMaxSize())
-                Box(Modifier.weight(1f).fillMaxSize().clickable(onClickLabel = "Next story", enabled = index < items.size - 1) { onIndex(index + 1) })
+            // Tap zones: previous / pause / next.
+            Row(Modifier.fillMaxSize().padding(top = 72.dp)) {
+                Box(Modifier.weight(1f).fillMaxSize().clickable(onClickLabel = "Previous story", indication = null, interactionSource = null) { if (index > 0) onIndex(index - 1) })
+                Box(Modifier.weight(1f).fillMaxSize().clickable(onClickLabel = if (paused) "Play" else "Pause", indication = null, interactionSource = null) { paused = !paused })
+                Box(Modifier.weight(1f).fillMaxSize().clickable(onClickLabel = "Next story", indication = null, interactionSource = null) { next() })
             }
-            Row(
-                Modifier.fillMaxWidth().statusBarsPadding().background(Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent))).padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(s.username ?: s.userId, style = WaType.base.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
-                Text(fmt.listTime(s.takenAt), style = WaType.small, color = Color(0xDDFFFFFF), modifier = Modifier.weight(1f))
-                Box(Modifier.size(36.dp).clip(CircleShape).clickable(onClickLabel = "Close", onClick = onClose), contentAlignment = Alignment.Center) {
-                    WaIcon(WaIcons.close, 22.dp, Color.White, contentDescription = "Close")
+            Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color(0x73000000), Color.Transparent))).statusBarsPadding().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 16.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (k in first..last) {
+                        val f = if (k < index) 1f else if (k > index) 0f else progress
+                        Box(Modifier.weight(1f).height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color(0x59FFFFFF))) {
+                            Box(Modifier.fillMaxWidth(f).fillMaxHeight().background(Color.White))
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Avatar(s.userId, s.username ?: s.userId, avatarOf(s.userId), size = 32.dp)
+                    Text(s.username ?: s.userId, style = WaType.base.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(formatAgo(s.takenAt), style = WaType.base, color = Color(0xBFFFFFFF), modifier = Modifier.weight(1f))
+                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClickLabel = if (paused) "Play" else "Pause") { paused = !paused }, contentAlignment = Alignment.Center) {
+                        WaIcon(if (paused) WaIcons.play else WaIcons.pause, 20.dp, Color.White, contentDescription = if (paused) "Play" else "Pause")
+                    }
+                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClickLabel = "Close", onClick = onClose), contentAlignment = Alignment.Center) {
+                        WaIcon(WaIcons.close, 26.dp, Color.White, contentDescription = "Close")
+                    }
                 }
             }
         }

@@ -5,6 +5,8 @@ import android.content.ClipDescription
 import android.os.Build
 import android.os.PersistableBundle
 import androidx.compose.foundation.background
+import io.github.revocx35.instalogger.ui.components.Wordmark
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -61,35 +63,28 @@ import io.github.revocx35.instalogger.ui.theme.WaType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** `.auth-page`: green banner behind a centered card with the insta_logger brand (like the web). */
+/** `.auth-page`: Instagram's login box — the script wordmark over a thin-bordered card (borderless on phones). */
 @Composable
 fun AuthShell(title: String, subtitle: String? = null, wide: Boolean = false, content: @Composable () -> Unit) {
     val c = Wa.colors
     BoxWithConstraints(Modifier.fillMaxSize().background(c.bg)) {
         val compact = maxWidth < 600.dp
-        Box(Modifier.fillMaxWidth().height(220.dp).background(c.authBanner))
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().navigationBarsPadding().imePadding()
-                .padding(horizontal = if (compact) 12.dp else 16.dp, vertical = if (compact) 24.dp else 64.dp),
+                .padding(horizontal = if (compact) 4.dp else 16.dp, vertical = if (compact) 24.dp else 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
                 Modifier
-                    .widthIn(max = if (wide) 620.dp else 440.dp)
+                    .widthIn(max = if (wide) 620.dp else 400.dp)
                     .fillMaxWidth()
-                    .shadow(24.dp, RoundedCornerShape(12.dp), ambientColor = Color(0x3D0B141A), spotColor = Color(0x3D0B141A))
-                    .clip(RoundedCornerShape(12.dp))
+                    .then(if (compact) Modifier else Modifier.border(1.dp, c.border, RoundedCornerShape(4.dp)))
                     .background(c.panel)
-                    .padding(if (compact) 22.dp else 32.dp),
+                    .padding(horizontal = if (compact) 24.dp else 40.dp, vertical = if (compact) 16.dp else 32.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 24.dp)) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
-                        WaIcon(WaIcons.shield, 26.dp, Color.White)
-                    }
-                    Text("insta_logger", style = WaType.base.copy(fontWeight = FontWeight.SemiBold), color = if (c.isDark) c.ok else c.accent2)
-                }
-                Text(title, style = WaType.authTitle, color = c.text, modifier = Modifier.padding(bottom = 8.dp))
-                if (subtitle != null) MutedText(subtitle)
+                Wordmark(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 18.dp), size = 46.sp)
+                Text(title, style = WaType.authTitle, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp))
+                if (subtitle != null) MutedText(subtitle, Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 Spacer(Modifier.height(16.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) { content() }
             }

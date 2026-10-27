@@ -11,13 +11,15 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import io.github.revocx35.instalogger.R
 
 /**
- * Design tokens of the web UI (`web/src/styles.css` :root and its dark-mode override), so the app
- * looks the same. Light/dark follows the system, like the web UI.
+ * Design tokens of the web UI (`web/src/styles.css` :root and its dark-mode override), styled after Instagram's own
+ * app, so both look the same. Light/dark follows the system, like the web UI.
  */
 @Immutable
 data class WaColors(
@@ -51,25 +53,32 @@ data class WaColors(
     val tickRead: Color,
     /** Accent used for text on neutral backgrounds (chip label, quote sender): accent-2 light, ok dark. */
     val accentOnPanel: Color,
-    val authBanner: Color,
     val avatarIconBg: Color,
     val avatarIconFg: Color,
     val shadow: Color,
+    /** Instagram's like red (filled hearts, notification dots). */
+    val like: Color,
+    /** Neutral buttons (Instagram's grey "secondary" button). */
+    val btn: Color,
+    /** Background of text fields on auth screens. */
+    val inputBg: Color,
+    /** Sheets and menus (lighter than the page in dark mode, like Instagram). */
+    val sheet: Color,
     val isDark: Boolean,
 )
 
 val LightWaColors = WaColors(
-    bg = Color(0xFFFAFAFA),
+    bg = Color(0xFFFFFFFF),
     panel = Color(0xFFFFFFFF),
-    panel2 = Color(0xFFFAFAFA),
+    panel2 = Color(0xFFEFEFEF),
     head = Color(0xFFFFFFFF),
     rail = Color(0xFFFFFFFF),
     chatBg = Color(0xFFFFFFFF),
     bubbleIn = Color(0xFFEFEFEF),
     bubbleOut = Color(0xFF3797F0),
     bubbleOutText = Color(0xFFFFFFFF),
-    text = Color(0xFF0C1014),
-    text2 = Color(0xFF3D4651),
+    text = Color(0xFF000000),
+    text2 = Color(0xFF262626),
     muted = Color(0xFF737373),
     border = Color(0xFFDBDBDB),
     hover = Color(0xFFF2F2F2),
@@ -87,17 +96,20 @@ val LightWaColors = WaColors(
     quoteBg = Color(0x0F000000),
     tickRead = Color(0xFF0095F6),
     accentOnPanel = Color(0xFF1877F2),
-    authBanner = Color(0xFFD62976),
-    avatarIconBg = Color(0xFF737373),
-    avatarIconFg = Color(0xFFEFEFEF),
+    avatarIconBg = Color(0xFFC7C7C7),
+    avatarIconFg = Color(0xFFFFFFFF),
     shadow = Color(0x00000000),
+    like = Color(0xFFFF3040),
+    btn = Color(0xFFEFEFEF),
+    inputBg = Color(0xFFFAFAFA),
+    sheet = Color(0xFFFFFFFF),
     isDark = false,
 )
 
 val DarkWaColors = WaColors(
     bg = Color(0xFF000000),
     panel = Color(0xFF000000),
-    panel2 = Color(0xFF121212),
+    panel2 = Color(0xFF262626),
     head = Color(0xFF000000),
     rail = Color(0xFF000000),
     chatBg = Color(0xFF000000),
@@ -105,7 +117,7 @@ val DarkWaColors = WaColors(
     bubbleOut = Color(0xFF3797F0),
     bubbleOutText = Color(0xFFFFFFFF),
     text = Color(0xFFF5F5F5),
-    text2 = Color(0xFFC7C7C7),
+    text2 = Color(0xFFE0E0E0),
     muted = Color(0xFFA8A8A8),
     border = Color(0xFF262626),
     hover = Color(0xFF1A1A1A),
@@ -123,27 +135,34 @@ val DarkWaColors = WaColors(
     quoteBg = Color(0x14FFFFFF),
     tickRead = Color(0xFF0095F6),
     accentOnPanel = Color(0xFF0095F6),
-    authBanner = Color(0xFF962FBF),
     avatarIconBg = Color(0xFF363636),
     avatarIconFg = Color(0xFFDBDBDB),
     shadow = Color(0x00000000),
+    like = Color(0xFFFF3040),
+    btn = Color(0xFF363636),
+    inputBg = Color(0xFF121212),
+    sheet = Color(0xFF262626),
     isDark = true,
 )
 
 val LocalWaColors = staticCompositionLocalOf { LightWaColors }
 
-/** Type scale of the web UI (15px base). */
+/** The script face of the wordmark (Grand Hotel, SIL OFL — `third_party/GrandHotel-OFL.txt`). */
+val ScriptFont = FontFamily(Font(R.font.grand_hotel))
+
+/** Type scale of the web UI, which follows Instagram's (14 sp base, 15 sp messages, bold titles). */
 object WaType {
-    val base = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontFamily = FontFamily.SansSerif)
-    val bubble = TextStyle(fontSize = 14.5.sp, lineHeight = 20.sp)
-    val small = TextStyle(fontSize = 12.75.sp, lineHeight = 17.sp)
-    val tiny = TextStyle(fontSize = 11.25.sp, lineHeight = 14.sp)
+    val base = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontFamily = FontFamily.SansSerif)
+    val bubble = TextStyle(fontSize = 15.sp, lineHeight = 20.sp)
+    val small = TextStyle(fontSize = 12.5.sp, lineHeight = 16.sp)
+    val tiny = TextStyle(fontSize = 11.sp, lineHeight = 14.sp)
     val meta = TextStyle(fontSize = 10.5.sp, lineHeight = 13.sp)
-    val chatName = TextStyle(fontSize = 15.5.sp, lineHeight = 21.sp)
-    val paneTitle = TextStyle(fontSize = 21.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
-    val pageTitle = TextStyle(fontSize = 22.5.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium)
-    val sectionTitle = TextStyle(fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium)
-    val authTitle = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Medium)
+    val chatName = TextStyle(fontSize = 14.sp, lineHeight = 18.sp)
+    val paneTitle = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
+    val pageTitle = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold)
+    val sectionTitle = TextStyle(fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Bold)
+    val authTitle = TextStyle(fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    val wordmark = TextStyle(fontFamily = ScriptFont, fontSize = 30.sp, lineHeight = 34.sp)
     val mono = TextStyle(fontFamily = FontFamily.Monospace)
 }
 

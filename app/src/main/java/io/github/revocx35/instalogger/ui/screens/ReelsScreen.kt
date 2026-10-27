@@ -2,6 +2,12 @@ package io.github.revocx35.instalogger.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -217,9 +223,11 @@ fun ReelsScreen(vm: ReelsViewModel, session: ServerSession, connected: Boolean) 
                 ReelPage(reel, vm, session, player, active = page == pager.currentPage, onComments = { commenting = reel }, onShare = { sharing = reel })
             }
         }
-        Row(Modifier.statusBarsPadding().padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        // Instagram's reels header: the title on the left, the controls on the right.
+        Row(Modifier.statusBarsPadding().padding(start = 16.dp, end = 8.dp, top = 6.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Reels", style = WaType.paneTitle.copy(fontSize = 22.sp), color = Color.White, modifier = Modifier.weight(1f))
+            RoundButton(if (muted) WaIcons.mute else WaIcons.volume, if (muted) "Sound on" else "Sound off") { muted = !muted }
             RoundButton(if (vm.loading) null else WaIcons.refresh, "Refresh feed") { vm.load(fresh = true) }
-            RoundButton(if (muted) WaIcons.mute else WaIcons.speaker, if (muted) "Sound on" else "Sound off") { muted = !muted }
         }
     }
     sharing?.let { ShareDialog(it, session) { sharing = null } }
@@ -229,10 +237,10 @@ fun ReelsScreen(vm: ReelsViewModel, session: ServerSession, connected: Boolean) 
 @Composable
 private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector?, label: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(40.dp).clip(CircleShape).background(Color(0x33FFFFFF)).clickable(onClickLabel = label, onClick = onClick),
+        Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (icon == null) Spinner(18.dp) else WaIcon(icon, 20.dp, Color.White, contentDescription = label)
+        if (icon == null) Spinner(20.dp) else WaIcon(icon, 24.dp, Color.White, contentDescription = label)
     }
 }
 
@@ -241,6 +249,17 @@ private fun RoundButton(icon: androidx.compose.ui.graphics.vector.ImageVector?, 
 private fun ReelPage(reel: WebPost, vm: ReelsViewModel, session: ServerSession, player: Player, active: Boolean, onComments: () -> Unit, onShare: () -> Unit) {
     val (liked, likes) = vm.liked(reel)
     var expanded by remember { mutableStateOf(false) }
+    // The big heart that pops up on a double tap.
+    var pop by remember { mutableStateOf(0L) }
+    val popScale = remember { Animatable(0f) }
+    LaunchedEffect(pop) {
+        if (pop == 0L) return@LaunchedEffect
+        popScale.snapTo(0.2f)
+        popScale.animateTo(1.15f, tween(140))
+        popScale.animateTo(1f, tween(120))
+        kotlinx.coroutines.delay(450)
+        popScale.animateTo(0f, tween(200))
+    }
     Box(Modifier.fillMaxSize()) {
         val poster = reel.video?.poster ?: reel.media.firstOrNull()?.src
         if (active && reel.video?.kind == "video") {
@@ -264,28 +283,38 @@ private fun ReelPage(reel: WebPost, vm: ReelsViewModel, session: ServerSession, 
             Modifier.fillMaxSize().pointerInput(reel.id) {
                 detectTapGestures(
                     onTap = { if (active) player.playWhenReady = !player.playWhenReady },
-                    onDoubleTap = { if (!vm.liked(reel).first) vm.toggleLike(reel) },
+                    onDoubleTap = {
+                        pop = System.currentTimeMillis()
+                        if (!vm.liked(reel).first) vm.toggleLike(reel)
+                    },
                 )
             },
         )
+        if (popScale.value > 0f) {
+            WaIcon(WaIcons.heartFill, 100.dp, Color.White, Modifier.align(Alignment.Center).graphicsLayer(scaleX = popScale.value, scaleY = popScale.value, alpha = popScale.value.coerceAtMost(1f)))
+        }
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth().background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000))))
-                .padding(start = 14.dp, end = 76.dp, top = 48.dp, bottom = 18.dp),
+                .padding(start = 16.dp, end = 76.dp, top = 56.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Avatar(reel.user.id, reel.user.username, reel.user.avatar, size = 32.dp)
                 Text(reel.user.username, style = WaType.base.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
-                if (reel.user.verified) WaIcon(WaIcons.check, 14.dp, Color(0xFF0095F6), contentDescription = "Verified")
+                if (reel.user.verified) WaIcon(WaIcons.verified, 14.dp, Color(0xFF0095F6), contentDescription = "Verified")
             }
             reel.caption?.let {
-                Text(it, style = WaType.small, color = Color.White, maxLines = if (expanded) 12 else 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { expanded = !expanded })
+                Text(it, style = WaType.base, color = Color.White, maxLines = if (expanded) 12 else 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.clickable { expanded = !expanded })
             }
         }
-        Column(Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Action(WaIcons.heart, compact(likes), if (liked) Color(0xFFED4956) else Color.White, if (liked) "Unlike" else "Like") { vm.toggleLike(reel) }
+        Column(Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 22.dp), verticalArrangement = Arrangement.spacedBy(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Action(if (liked) WaIcons.heartFill else WaIcons.heart, compact(likes), if (liked) Wa.colors.like else Color.White, if (liked) "Unlike" else "Like") { vm.toggleLike(reel) }
             Action(WaIcons.comment, compact(reel.commentCount), Color.White, "Comments", onClick = onComments)
-            Action(WaIcons.send, "Send", Color.White, "Send to a chat", enabled = reel.code != null, onClick = onShare)
+            Action(WaIcons.send, "", Color.White, "Send to a chat", enabled = reel.code != null, onClick = onShare)
+            // Instagram's audio thumbnail: the author's picture in a small rounded square.
+            Box(Modifier.size(30.dp).clip(RoundedCornerShape(7.dp)).border(2.dp, Color.White, RoundedCornerShape(7.dp))) {
+                Avatar(reel.user.id, reel.user.username, reel.user.avatar, size = 30.dp)
+            }
         }
     }
 }
@@ -298,7 +327,7 @@ private fun Action(icon: androidx.compose.ui.graphics.vector.ImageVector, label:
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         WaIcon(icon, 28.dp, if (enabled) tint else tint.copy(alpha = 0.4f), contentDescription = description)
-        if (label.isNotEmpty()) Text(label, style = WaType.tiny, color = Color.White)
+        if (label.isNotEmpty()) Text(label, style = WaType.small.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
     }
 }
 

@@ -29,6 +29,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import io.github.revocx35.instalogger.ui.components.Wordmark
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -107,9 +117,12 @@ import kotlinx.serialization.Serializable
 @Serializable object SettingsRoute
 @Serializable object AdminRoute
 
-/** [adminOnly] tabs exist only for the admin (the first account). */
-enum class Tab(val label: String, val icon: ImageVector, val adminOnly: Boolean = false) {
-    Chats("Chats", WaIcons.chats), Reels("Reels", WaIcons.reels), Stories("Stories", WaIcons.stories), Deleted("Unsent", WaIcons.deleted), Search("Search", WaIcons.search), Instagram("Instagram", WaIcons.monitor), Settings("Settings", WaIcons.settings), Admin("Users", WaIcons.group, adminOnly = true)
+/**
+ * [adminOnly] tabs exist only for the admin (the first account). [bottom] tabs fill Instagram's phone tab bar; the
+ * others open from its "More" sheet.
+ */
+enum class Tab(val label: String, val icon: ImageVector, val adminOnly: Boolean = false, val bottom: Boolean = false) {
+    Chats("Messages", WaIcons.chats, bottom = true), Search("Search", WaIcons.search, bottom = true), Reels("Reels", WaIcons.reels, bottom = true), Stories("Stories", WaIcons.stories, bottom = true), Deleted("Unsent", WaIcons.deleted), Instagram("Instagram", WaIcons.monitor), Admin("Users", WaIcons.group, adminOnly = true), Settings("Settings", WaIcons.settings)
 }
 
 private fun tabRoute(t: Tab): Any = when (t) {
@@ -129,17 +142,60 @@ private fun NavHostController.goTab(t: Tab) = navigate(tabRoute(t)) {
     restoreState = true
 }
 
+/** One icon of Instagram's tab bar / narrow sidebar: no label, the active one drawn bolder; [dot] = needs attention. */
 @Composable
-private fun RailItem(label: String, icon: ImageVector, active: Boolean, compact: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val c = Wa.colors
-    Column(
-        modifier.width(if (compact) 58.dp else 60.dp).clip(RoundedCornerShape(12.dp)).background(if (active) c.active else androidx.compose.ui.graphics.Color.Transparent)
-            .clickable(role = Role.Tab, onClickLabel = label, onClick = onClick).padding(vertical = if (compact) 4.dp else 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+private fun RailItem(label: String, icon: ImageVector, active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Wa.colors.text, dot: Boolean = false) {
+    Box(
+        modifier.height(50.dp).widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Tab, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label; selected = active },
+        contentAlignment = Alignment.Center,
     ) {
-        WaIcon(icon, 22.dp, if (active) c.accent else c.text2)
-        Text(label, style = WaType.tiny.copy(fontSize = 10.2.sp, lineHeight = 12.sp), color = if (active) c.accent else c.text2, maxLines = 1)
+        Box {
+            // The outline icons are 2 px strokes; Instagram marks the current tab with a filled/bolder icon.
+            WaIcon(icon, 27.dp, tint, Modifier.then(if (active) Modifier.graphicsLayer(scaleX = 1.04f, scaleY = 1.04f) else Modifier))
+            if (active) WaIcon(icon, 27.dp, tint, Modifier.padding(start = 0.6.dp, top = 0.6.dp))
+            if (dot) Box(Modifier.align(Alignment.TopEnd).size(11.dp).clip(CircleShape).background(Wa.colors.panel).padding(2.dp).clip(CircleShape).background(Wa.colors.like))
+        }
+    }
+}
+
+/** Instagram's "More" sheet: the pages without a tab, the connection state and log out. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreSheet(tabs: List<Tab>, wa: IgStatus?, username: String?, onTab: (Tab) -> Unit, onLogout: () -> Unit, onAccounts: () -> Unit, onClose: () -> Unit) {
+    val c = Wa.colors
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = c.sheet, dragHandle = { Box(Modifier.padding(top = 8.dp).size(40.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(c.border)) }) {
+        Column(Modifier.navigationBarsPadding().padding(8.dp)) {
+            for (t in tabs) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onClose(); onTab(t) }.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    WaIcon(t.icon, 24.dp, c.text)
+                    Text(t.label, style = WaType.base.copy(fontSize = 15.sp), color = c.text, modifier = Modifier.weight(1f))
+                    if (t == Tab.Instagram) WaStatePill(wa, compact = true)
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onClose(); onAccounts() }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                WaIcon(WaIcons.user, 24.dp, c.text)
+                Text("Switch account", style = WaType.base.copy(fontSize = 15.sp), color = c.text)
+            }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(6.dp).background(c.border))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onClose(); onLogout() }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                WaIcon(WaIcons.logout, 24.dp, c.text)
+                Text(if (username != null) "Log out @$username" else "Log out", style = WaType.base.copy(fontSize = 15.sp), color = c.text)
+            }
+        }
     }
 }
 
@@ -210,9 +266,8 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
     val chatList: ChatListViewModel = viewModel(key = "chats:${session.id}") { ChatListViewModel(session) }
     val chatListState = rememberLazyListState()
     val showAdmin = state.role == UserRole.Admin
-    // The phone bottom rail keeps 7 items; admins open Users from Settings there.
     val railTabs = Tab.entries.filter { showAdmin || !it.adminOnly }
-    val bottomTabs = Tab.entries.filter { (showAdmin || !it.adminOnly) && it != Tab.Admin }
+    var moreOpen by remember { mutableStateOf(false) }
     val needsAttention = wa?.needsLogin == true
     val sender = remember(session) { ServerSender(context.applicationContext, session.api) }
     val sendBlocked = if (wa?.connected == true) null else "Instagram is not connected right now, so messages can’t be sent."
@@ -248,12 +303,12 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                         composable<ChatsRoute> {
                             if (wide) {
                                 Row(Modifier.fillMaxSize()) {
-                                    ChatListPane(chatList, null, { openChat(it) }, { nav.navigate(SearchRoute(it)) }, Modifier.widthIn(min = 300.dp, max = 440.dp).fillMaxWidth(0.3f).fillMaxHeight(), chatListState)
+                                    ChatListPane(chatList, null, { openChat(it) }, { nav.navigate(SearchRoute(it)) }, Modifier.width(397.dp).fillMaxHeight(), chatListState, wa?.me?.username)
                                     Box(Modifier.width(1.dp).fillMaxHeight().background(c.border))
                                     NoChatSelected(Modifier.weight(1f).fillMaxHeight())
                                 }
                             } else {
-                                ChatListPane(chatList, null, { openChat(it) }, { nav.navigate(SearchRoute(it)) }, Modifier.fillMaxSize(), chatListState)
+                                ChatListPane(chatList, null, { openChat(it) }, { nav.navigate(SearchRoute(it)) }, Modifier.fillMaxSize(), chatListState, wa?.me?.username)
                             }
                         }
                         composable<ChatRoute> { back ->
@@ -261,7 +316,7 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                             val vm: ChatViewModel = viewModel(key = "chat:${session.id}:${r.chatId}:${r.focus}") { ChatViewModel(session, r.chatId, r.focus) }
                             if (wide) {
                                 Row(Modifier.fillMaxSize()) {
-                                    ChatListPane(chatList, r.chatId, { openChat(it, replace = true) }, { nav.navigate(SearchRoute(it)) }, Modifier.widthIn(min = 300.dp, max = 440.dp).fillMaxWidth(0.3f).fillMaxHeight(), chatListState)
+                                    ChatListPane(chatList, r.chatId, { openChat(it, replace = true) }, { nav.navigate(SearchRoute(it)) }, Modifier.width(397.dp).fillMaxHeight(), chatListState, wa?.me?.username)
                                     Box(Modifier.width(1.dp).fillMaxHeight().background(c.border))
                                     ChatPane(vm, null, true, actions, Modifier.weight(1f).fillMaxHeight(), sendDisabledReason = sendBlocked)
                                 }
@@ -316,14 +371,19 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
 
         if (wide) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
-                SideRail(activeTab, wa, railTabs, { nav.goTab(it) }, onLogout, activeAccount) { showAccounts = true }
+                SideRail(activeTab, wa, railTabs, { nav.goTab(it) }) { moreOpen = true }
                 Column(Modifier.weight(1f).fillMaxHeight(), content = content)
             }
         } else {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))) {
                 content()
-                if (!inChat) BottomRail(activeTab, bottomTabs) { if (it == null) onLogout() else nav.goTab(it) }
+                if (!inChat) BottomRail(activeTab, wa, railTabs.filter { it.bottom }, activeTab == Tab.Reels, { nav.goTab(it) }) { moreOpen = true }
             }
+        }
+
+        if (moreOpen) {
+            // On phones the sheet lists every page without a tab; the wide rail already shows them all.
+            MoreSheet(if (wide) emptyList() else railTabs.filter { !it.bottom }, wa, state.username, { nav.goTab(it) }, onLogout, { showAccounts = true }) { moreOpen = false }
         }
     }
 
@@ -341,40 +401,37 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
     viewing?.let { msg -> MediaViewer(session, msg, onSave = { save(msg) }, onClose = { viewing = null }) }
 }
 
-/** The web's `.rail` on wide screens: menu items on top, the account menu, Instagram status and log out below. */
+/** Instagram's narrow sidebar on wide screens: the wordmark's initials, one icon per page, "More" at the bottom. */
 @Composable
-fun SideRail(active: Tab?, wa: IgStatus?, tabs: List<Tab>, onTab: (Tab) -> Unit, onLogout: () -> Unit, account: io.github.revocx35.instalogger.data.Account?, onAccount: () -> Unit) {
+fun SideRail(active: Tab?, wa: IgStatus?, tabs: List<Tab>, onTab: (Tab) -> Unit, onMore: () -> Unit) {
     val c = Wa.colors
     Row(Modifier.fillMaxHeight()) {
         Column(
-            Modifier.width(72.dp).fillMaxHeight().background(c.rail).statusBarsPadding().navigationBarsPadding().padding(vertical = 10.dp),
+            Modifier.width(72.dp).fillMaxHeight().background(c.rail).statusBarsPadding().navigationBarsPadding().padding(vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (t in tabs) RailItem(t.label, t.icon, active == t, false, { onTab(t) })
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Wordmark(Modifier.padding(top = 8.dp, bottom = 16.dp), size = 28.sp, text = "Il")
+                for (t in tabs) RailItem(t.label, t.icon, active == t, { onTab(t) }, dot = t == Tab.Instagram && wa?.connected != true)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.clip(RoundedCornerShape(12.dp)).clickable { onTab(Tab.Instagram) }.padding(6.dp)) { WaStatePill(wa, compact = true) }
-                RailItem(if (account?.username != null) "Accounts" else "Account", WaIcons.user, false, false, onAccount)
-                RailItem("Log out", WaIcons.logout, false, false, onLogout)
-            }
+            RailItem("More", WaIcons.menu, false, onMore)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(c.border))
     }
 }
 
-/** The rail at the bottom on phones (hidden inside a chat). Log out is in Settings there (no room for a 7th item). */
+/** Instagram's phone tab bar (hidden inside a chat; black on Reels): four tabs and "More". */
 @Composable
-fun BottomRail(active: Tab?, tabs: List<Tab>, onTab: (Tab?) -> Unit) {
+fun BottomRail(active: Tab?, wa: IgStatus?, tabs: List<Tab>, dark: Boolean, onTab: (Tab) -> Unit, onMore: () -> Unit) {
     val c = Wa.colors
+    val bg = if (dark) Color.Black else c.rail
+    val fg = if (dark) Color.White else c.text
     Column {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
-        Row(
-            Modifier.fillMaxWidth().background(c.rail).navigationBarsPadding().padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            for (t in tabs) RailItem(t.label, t.icon, active == t, true, { onTab(t) }, Modifier.weight(1f))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(if (dark) Color(0xFF262626) else c.border))
+        Row(Modifier.fillMaxWidth().background(bg).navigationBarsPadding(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            for (t in tabs) RailItem(t.label, t.icon, active == t, { onTab(t) }, Modifier.weight(1f), tint = fg)
+            RailItem("More", WaIcons.menu, active != null && !active.bottom, onMore, Modifier.weight(1f), tint = fg, dot = wa?.connected != true)
         }
     }
 }

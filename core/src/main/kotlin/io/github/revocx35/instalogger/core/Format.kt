@@ -104,3 +104,17 @@ fun colorFor(id: String): Long {
     for (ch in id) h = h * 31 + ch.code
     return SENDER_COLORS[(abs(h.toLong()) % SENDER_COLORS.size).toInt()]
 }
+
+/** Instagram's short relative time, like the web's `formatAgo`: "now", "5m", "3h", "2d", "4w", then "2y". */
+fun formatAgo(ts: Long?, now: Long = System.currentTimeMillis()): String {
+    if (ts == null || ts == 0L) return ""
+    val s = maxOf(0L, now - ts) / 1000
+    return when {
+        s < 60 -> "now"
+        s < 3600 -> "${s / 60}m"
+        s < 86_400 -> "${s / 3600}h"
+        s < 86_400 * 7 -> "${s / 86_400}d"
+        s < 86_400 * 365 -> "${s / (86_400 * 7)}w"
+        else -> "${s / (86_400 * 365)}y"
+    }
+}

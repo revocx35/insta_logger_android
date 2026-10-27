@@ -118,7 +118,7 @@ class FakeSender : io.github.revocx35.instalogger.ui.MessageSender {
 }
 
 /** The phone rail has no Users tab (admins open it from Settings there). */
-private val phoneTabs = Tab.entries.filter { it != Tab.Admin }
+private val phoneTabs = Tab.entries.filter { it.bottom }
 
 private val noAuth = AuthActions({ _, _, _ -> }, { _, _, _ -> LoginStep.Done }, { _, _, _ -> }, { _, _, _, _ -> })
 
@@ -149,16 +149,16 @@ class ScreenshotTest {
     @Test
     fun phoneChatList() = shot("phone_chats") {
         Column(Modifier.fillMaxSize()) {
-            ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth())
-            BottomRail(Tab.Chats, phoneTabs) {}
+            ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth(), account = "owner.account")
+            BottomRail(Tab.Chats, SampleData.ready, phoneTabs, false, {}) {}
         }
     }
 
     @Test
     fun phoneChatListDark() = shot("phone_chats_dark", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth())
-            BottomRail(Tab.Chats, phoneTabs) {}
+            ChatListPane(FakeChatList(SampleData.chats), null, {}, {}, Modifier.weight(1f).fillMaxWidth(), account = "owner.account")
+            BottomRail(Tab.Chats, SampleData.ready, phoneTabs, false, {}) {}
         }
     }
 
@@ -200,7 +200,7 @@ class ScreenshotTest {
     fun phoneDeleted() = shot("phone_deleted") {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) { DeletedScreen(FakeDeleted(SampleData.deleted)) { _, _ -> } }
-            BottomRail(Tab.Deleted, phoneTabs) {}
+            BottomRail(Tab.Deleted, SampleData.ready, phoneTabs, false, {}) {}
         }
     }
 
@@ -208,7 +208,7 @@ class ScreenshotTest {
     fun phoneSearch() = shot("phone_search") {
         Column(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) { SearchScreen("plan", {}, SearchResponse(SampleData.hits, false), null, false, {}, { _, _ -> }) }
-            BottomRail(Tab.Search, phoneTabs) {}
+            BottomRail(Tab.Search, SampleData.ready, phoneTabs, false, {}) {}
         }
     }
 
@@ -225,7 +225,7 @@ class ScreenshotTest {
     @Test
     fun tabletTwoPane() = shot("tablet_two_pane") {
         Row(Modifier.fillMaxSize()) {
-            SideRail(Tab.Chats, SampleData.ready, phoneTabs, {}, {}, null, {})
+            SideRail(Tab.Chats, SampleData.ready, Tab.entries.filter { !it.adminOnly }, {}, {})
             ChatListPane(FakeChatList(SampleData.chats), SampleData.ALI, {}, {}, Modifier.widthIn(min = 300.dp, max = 440.dp).width(400.dp).fillMaxHeight())
             Box(Modifier.width(1.dp).fillMaxHeight().background(Wa.colors.border))
             ChatPane(FakeChat(aliSummary, SampleData.aliChat), null, true, NoMessageActions, Modifier.weight(1f).fillMaxHeight())

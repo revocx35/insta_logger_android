@@ -71,11 +71,28 @@ being shown; `AppController` owns the switch:
   that no longer exist at startup.
 - Trusted certificates moved from one global set to per-host keys (`certs:<host>`); `ServerTrust.serverHost` reloads
   the anchors of the account (or server being added) whenever it changes.
-- The UI is `ui/screens/AccountsScreen.kt`: `AccountSwitcherDialog` (opened from Settings → Account, the rail's account
-  icon, and after adding a server) and `AccountCard` for the Settings header. `MainShell` keys the whole shell on the
+- The UI is `ui/screens/AccountsScreen.kt`: `AccountSwitcherDialog` (opened from Settings → Account, More →
+  Switch account, and after adding a server) and `AccountCard` for the Settings header. `MainShell` keys the whole shell on the
   session id so tab state and view models never leak between accounts.
 - Migration: the single saved `server_url`/`allow_http`/`trusted_certs` of 0.5.0 become `Account.MAIN`, which keeps the
   old secret file names; `accounts_ready` makes it run once.
+
+## Look (0.7.0)
+
+Styled after Instagram's app, matching the server's web UI (its `styles.css` tokens are mirrored in `theme/Theme.kt`):
+white/black surfaces, `#efefef`/`#262626` secondary, `#0095f6` primary, `#ff3040` likes, 14 sp base type, flat 8 dp
+buttons, outlined chips. `WaIcons` are the web's outline icons (`Icon.tsx`) built as stroked `ImageVector`s. The
+wordmark uses Grand Hotel (`res/font`, SIL OFL in `third_party/`).
+
+- `MainShell`: phone tab bar with icons only (Messages, Search, Reels, Stories, More; black on Reels; red dot when
+  Instagram is not connected) and a `ModalBottomSheet` "More" (other pages, switch account, log out); the tablet rail
+  is the narrow icon sidebar with More at the bottom.
+- Chats: the account's Instagram username as title, "Messages · Requests", chips, 56 dp avatars, "preview · 2h"
+  (`formatAgo`). Bubbles: 22 dp, runs joined with 4 dp corners (`joinTop`/`joinBottom`), own bubbles paint a slice
+  of one screen-tall purple→blue gradient (position read in the draw phase only), bare photos/videos; pill composer
+  with a text "Send".
+- Reels: "Reels" header, filled red heart, double-tap heart pop, audio thumbnail. Stories: gradient-ring tray with
+  counts, archive grid with date boxes, viewer with progress bars, tap zones (back / pause / next), photos 5 s.
 
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server

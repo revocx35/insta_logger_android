@@ -60,4 +60,17 @@ class FormatTest {
         assertEquals("", f.listTime(null, now))
         assertEquals("14:50", Formatter(Locale.US, zone, use24h = true).time(at(2026, 9, 25, 14, 50)))
     }
+
+    @Test
+    fun agoLikeTheWeb() {
+        val now = 1_793_000_000_000L
+        assertEquals("", formatAgo(null, now))
+        assertEquals("now", formatAgo(now - 20_000, now))
+        assertEquals("now", formatAgo(now + 5_000, now))
+        assertEquals("5m", formatAgo(now - 5 * 60_000, now))
+        assertEquals("3h", formatAgo(now - 3 * 3_600_000, now))
+        assertEquals("2d", formatAgo(now - 2 * 86_400_000L, now))
+        assertEquals("2w", formatAgo(now - 15 * 86_400_000L, now))
+        assertEquals("2y", formatAgo(now - 800 * 86_400_000L, now))
+    }
 }

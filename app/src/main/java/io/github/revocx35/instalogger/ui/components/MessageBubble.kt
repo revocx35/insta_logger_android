@@ -34,6 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.SubcomposeLayout
@@ -210,8 +217,21 @@ private fun WithMeta(meta: @Composable () -> Unit, content: @Composable (metaWid
  * names in groups, media, shared posts, music, reactions and the seen tick.
  */
 @OptIn(ExperimentalFoundationApi::class)
+/** The web's `--out-grad` (top of the screen → bottom). */
+private val OUT_GRADIENT = listOf(Color(0xFFA033FF), Color(0xFF6B4DFC), Color(0xFF3797F0))
+
 @Composable
-fun MessageBubble(msg: Message, isGroup: Boolean, showSender: Boolean, highlighted: Boolean, maxBubbleWidth: Dp, modifier: Modifier = Modifier) {
+fun MessageBubble(
+    msg: Message,
+    isGroup: Boolean,
+    showSender: Boolean,
+    highlighted: Boolean,
+    maxBubbleWidth: Dp,
+    modifier: Modifier = Modifier,
+    /** The message before / after is from the same side: the joined corners get small, like Instagram's runs. */
+    joinTop: Boolean = false,
+    joinBottom: Boolean = false,
+) {
     val c = Wa.colors
     val fmt = LocalFormatter.current
     val actions = LocalMessageActions.current
@@ -227,15 +247,28 @@ fun MessageBubble(msg: Message, isGroup: Boolean, showSender: Boolean, highlight
     val deleted = msg.deletedAt != null
     val neverCaptured = false
     val sticker = msg.type == MessageType.Sticker && msg.media?.url != null
-    val shape = RoundedCornerShape(18.dp)
+    // Photos and videos without text sit on their own, without a bubble (like Instagram).
+    val mediaOnly = (msg.type == MessageType.Image || msg.type == MessageType.Video) && msg.media?.url != null && msg.text == null && msg.quoted == null
+    val big = 22.dp
+    val small = 4.dp
+    val shape = if (msg.fromMe) {
+        RoundedCornerShape(topStart = big, topEnd = if (joinTop) small else big, bottomEnd = if (joinBottom) small else big, bottomStart = big)
+    } else {
+        RoundedCornerShape(topStart = if (joinTop) small else big, topEnd = big, bottomEnd = big, bottomStart = if (joinBottom) small else big)
+    }
     val bubbleBg = when {
-        sticker -> Color.Transparent
+        sticker || mediaOnly -> Color.Transparent
         msg.fromMe -> c.bubbleOut
         else -> c.bubbleIn
     }
+    // Own bubbles share one screen-tall purple→blue gradient (Instagram's): each bubble paints the slice at its
+    // position. The position is read in the draw phase only, so scrolling redraws without recomposing.
+    val outGradient = msg.fromMe && !sticker && !mediaOnly
+    val windowY = remember { mutableFloatStateOf(0f) }
+    val screenH = LocalWindowInfo.current.containerSize.height.toFloat()
     val innerMax = maxBubbleWidth - 17.dp
     // Own messages: white text on Instagram's blue bubble.
-    val onBlue = msg.fromMe && !sticker
+    val onBlue = msg.fromMe && !sticker && !mediaOnly
     val fg = if (onBlue) c.bubbleOutText else c.text
     val metaColor = if (onBlue) c.bubbleOutText.copy(alpha = 0.75f) else c.muted
     val selection = LocalSelection.current
@@ -262,7 +295,15 @@ fun MessageBubble(msg: Message, isGroup: Boolean, showSender: Boolean, highlight
                     },
                 )
                 .clip(shape)
-                .background(bubbleBg)
+                .then(
+                    if (outGradient) {
+                        Modifier
+                            .onGloballyPositioned { windowY.floatValue = it.positionInWindow().y }
+                            .drawBehind { drawRect(Brush.verticalGradient(OUT_GRADIENT, startY = -windowY.floatValue, endY = screenH - windowY.floatValue)) }
+                    } else {
+                        Modifier.background(bubbleBg)
+                    },
+                )
                 .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -274,11 +315,12 @@ fun MessageBubble(msg: Message, isGroup: Boolean, showSender: Boolean, highlight
                         if (selection?.active == true && selectable) selection.toggle(msg) else actions.longPress(msg)
                     },
                 )
-                .padding(start = 12.dp, end = 12.dp, top = 7.dp, bottom = 7.dp),
+                .padding(if (mediaOnly) PaddingValues(0.dp) else PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)),
         ) {
             WithMeta(
                 meta = {
-                    Row(Modifier.padding(start = 10.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Under a bare photo/video the time keeps clear of the rounded corner.
+                    Row(Modifier.padding(start = 10.dp, top = 4.dp, end = if (mediaOnly) 12.dp else 0.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (msg.edited) {
                             LinkButton(
                                 "Edited" + if (msg.editCount > 1) " ×${msg.editCount}" else "",

@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import java.text.Normalizer
 
-enum class ChatFilter(val label: String) { All("All"), Groups("Groups"), Deleted("Has unsent"), Requests("Requests") }
+enum class ChatFilter(val label: String) { All("Primary"), Groups("Groups"), Deleted("Has unsent"), Requests("Requests") }
 
 private val MARKS = Regex("\\p{M}+")
 fun normalizeForSearch(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKD).replace(MARKS, "").lowercase()

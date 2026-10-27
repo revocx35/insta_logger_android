@@ -1,8 +1,8 @@
 # insta_logger for Android
 
 A native Android client (Kotlin, Jetpack Compose) for your self-hosted
-[insta_logger](https://github.com/revocx35/insta_logger) server. It looks like insta_logger's web UI (Instagram's
-colors, blue bubbles, light and dark), but it is a real app: native lists and media playback, a native view of the
+[insta_logger](https://github.com/revocx35/insta_logger) server. It looks like Instagram's own app (since 0.7.0:
+outline icons, the bottom tab bar, the DM inbox, gradient bubbles, the reels and stories screens; light and dark), but it is a real app: native lists and media playback, a native view of the
 server's Instagram browser, and the session kept in the Android Keystore.
 
 **The phone never talks to Instagram.** Everything — your chats, sending, reels — goes through your server, so
@@ -41,7 +41,8 @@ Through the same server API as the web UI (`shared/api.d.ts` of insta_logger):
   pinch = zoom, keyboard, view-only switch, restart, log out), **Settings** (account, password, 2FA, recovery key,
   sessions, logging options, background session refresh, Instagram connection, security log, wipe).
 - **Live updates** over the server's event stream while the app is open.
-- Phones get the bottom menu, tablets / landscape (≥ 900 dp) get the side rail and two panes.
+- Phones get Instagram's bottom tab bar (Messages, Search, Reels, Stories, **More** → Unsent, Instagram, Settings,
+  switch account, log out); tablets / landscape (≥ 900 dp) get the narrow side rail and two panes.
 
 ## Multiple users (0.5.0)
 
@@ -60,7 +61,7 @@ One phone can hold several insta_logger accounts — another server (the homelab
 user on the same server — and switch between them without signing out:
 
 - **Where:** the **Account** section at the top of Settings shows the account you are in (name, server address);
-  tapping it, **Switch account**, or the account icon at the bottom of the tablet rail opens the account menu. Each
+  tapping it, **Switch account**, or **More → Switch account** opens the account menu. Each
   account in the menu shows its user name and server, with the open one marked; **Add another account** goes to the
   server screen (where you can check the address, trust a certificate and sign in with authentik before saving).
 - **Switching** closes the current session and opens the other one with its own cookie and authentik tokens. Nothing

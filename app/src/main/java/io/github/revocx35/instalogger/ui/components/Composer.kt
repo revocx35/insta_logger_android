@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -120,14 +121,13 @@ private val PHOTO_OR_VIDEO = Regex("^(image/(jpeg|png|webp|gif)|video/(mp4|3gpp|
 private fun ComposeBar(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, text: String, onClose: () -> Unit, extra: (@Composable () -> Unit)? = null) {
     val c = Wa.colors
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.panel).padding(start = 0.dp, end = 4.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.panel2).padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.width(4.dp).heightIn(min = 44.dp).background(c.accent))
         WaIcon(icon, 16.dp, c.text2)
         Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
-            Text(title, style = WaType.small.copy(fontWeight = FontWeight.Medium), color = c.accent2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, style = WaType.small.copy(fontWeight = FontWeight.SemiBold), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(text, style = WaType.small, color = c.text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         extra?.invoke()
@@ -276,7 +276,7 @@ fun Composer(
         }
     }
 
-    Column(modifier.fillMaxWidth().background(c.head).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth().background(c.head).navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         when {
             editing != null -> ComposeBar(WaIcons.edit, "Edit message", previewOf(editing), {
                 text = ""
@@ -303,11 +303,16 @@ fun Composer(
                 Box(Modifier.size(10.dp).clip(CircleShape).background(c.danger))
                 Text(String.format(java.util.Locale.ROOT, "%d:%02d", elapsed / 60, elapsed % 60), style = WaType.base, color = c.text)
                 Text("Recording a voice message…", style = WaType.small, color = c.muted, modifier = Modifier.weight(1f), maxLines = 1)
-                SendButton("Send voice message") { stopRecording(true) }
+                SendButton("Send") { stopRecording(true) }
             }
         } else {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (editing == null) IconBtn(WaIcons.attach, "Attach a file", { picker.launch("*/*") }, enabled = !disabled)
+            // Instagram's composer: one rounded field with the actions inside; "Send" appears once there is something to send.
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(22.dp)).border(1.dp, if (c.isDark) Color(0xFF363636) else c.border, RoundedCornerShape(22.dp))
+                    .padding(start = 16.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 BasicTextField(
                     value = text,
                     onValueChange = { text = it },
@@ -319,39 +324,40 @@ fun Composer(
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focus)
-                        .heightIn(min = 40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(c.panel)
-                        .border(1.dp, c.border, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(vertical = 11.dp),
                     decorationBox = { inner ->
                         Box {
-                            if (text.isEmpty()) Text(if (editing != null) "Edit message" else if (file != null) "Add a caption" else "Message", style = WaType.base.copy(fontSize = 15.sp), color = c.muted, maxLines = 1)
+                            if (text.isEmpty()) Text(if (editing != null) "Edit message" else if (file != null) "Add a caption..." else "Message...", style = WaType.base.copy(fontSize = 15.sp), color = c.muted, maxLines = 1)
                             inner()
                         }
                     },
                 )
                 when {
                     busy -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Spinner(20.dp) }
-                    text.isNotBlank() || file != null || editing != null -> SendButton(if (editing != null) "Save edit" else "Send", if (editing != null) WaIcons.check else WaIcons.send, !disabled) { send() }
-                    else -> IconBtn(WaIcons.mic, "Record a voice message", {
-                        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
-                        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
-                    }, enabled = !disabled)
+                    text.isNotBlank() || file != null || editing != null -> SendButton(if (editing != null) "Save" else "Send", !disabled) { send() }
+                    else -> {
+                        IconBtn(WaIcons.mic, "Record a voice message", {
+                            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
+                            else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                        }, enabled = !disabled, size = 38.dp)
+                        IconBtn(WaIcons.image, "Attach a photo, video or file", { picker.launch("*/*") }, enabled = !disabled, size = 38.dp)
+                    }
                 }
             }
         }
     }
 }
 
+/** Instagram's text "Send" (blue, bold) at the end of the composer field. */
 @Composable
-private fun SendButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector = WaIcons.send, enabled: Boolean = true, onClick: () -> Unit) {
+private fun SendButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     val c = Wa.colors
     Box(
-        Modifier.size(40.dp).clip(CircleShape).background(c.accent).clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
+        Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick).padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
-    ) { WaIcon(icon, 20.dp, c.accentText, contentDescription = label) }
+    ) { Text(label, style = WaType.base.copy(fontWeight = FontWeight.SemiBold), color = if (enabled) c.accent else c.accent.copy(alpha = 0.4f)) }
 }
+
 
 private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
 private const val EDIT_WINDOW_MS = 15 * 60_000L

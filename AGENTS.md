@@ -32,7 +32,9 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
 
 - Server API change → update `core/.../Models.kt` and `ApiClient` with it; unknown enum values must fall back (`ApiJson`).
 - New screen → a Robolectric screenshot test where it can run without a live session; check light/dark and phone width.
-- Bottom bar has 7 tabs: keep labels short; anything more goes into a screen, not the bar.
+- The look follows Instagram (0.7.0): the bottom bar has Instagram's five slots (`Tab.bottom` tabs + "More"); other
+  pages go into the More sheet. Icons in `WaIcons` are generated from the server's `web/src/components/Icon.tsx`
+  (outline, 2 px stroke): add a web icon first, then regenerate. Use `Wa.colors`/`WaType` tokens, not new colors.
 - Update README, ARCHITECTURE.md and this file with every feature; commits end with the `Co-Authored-By` trailer;
   run gitleaks before pushing (no LAN addresses, home paths or keys in the repo).
 
@@ -55,7 +57,7 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
 
 ## Multi-user (0.5.0, matches the server's Admin UI)
 - The admin (the first account) sees an extra **Users** tab: users, ports and the admin log (`AdminScreen.kt`,
-  `ApiClient.admin*`). The phone rail keeps 7 items; admins open it from Settings.
+  `ApiClient.admin*`). On phones it is in the More sheet (and Settings).
 - A sign-in with a temporary password returns `mustChangePassword`; the login screen then asks for a new password
   (`AuthActions.claim` → `POST /api/auth/claim`), plus the recovery key after an admin reset.
 - `AppState.role` decides whether the Users tab exists. Never rely on that for security: the server checks the admin

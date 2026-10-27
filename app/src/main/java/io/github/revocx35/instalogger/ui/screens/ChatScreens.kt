@@ -62,6 +62,7 @@ import io.github.revocx35.instalogger.core.ChatSummary
 import io.github.revocx35.instalogger.core.Message
 import io.github.revocx35.instalogger.core.MessageType
 import io.github.revocx35.instalogger.core.IgText
+import io.github.revocx35.instalogger.core.formatAgo
 import io.github.revocx35.instalogger.ui.LocalFormatter
 import io.github.revocx35.instalogger.ui.LocalMessageActions
 import io.github.revocx35.instalogger.ui.LocalSelection
@@ -103,23 +104,34 @@ fun ChatListPane(
     onSearchMessages: (String) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    /** The logged-in Instagram account, shown as the title like Instagram's inbox. */
+    account: String? = null,
 ) {
     val c = Wa.colors
-    val fmt = LocalFormatter.current
     Column(modifier.background(c.panel)) {
-        val sender = LocalSender.current
-        Row(Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Chats", style = WaType.paneTitle, color = c.text, modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(account ?: "Messages", style = WaType.paneTitle, color = c.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            IconBtn(WaIcons.edit, "Search messages", { onSearchMessages(state.query.trim()) })
         }
         SearchBox(
             state.query,
             { state.query = it },
-            "Search chats · Enter searches messages",
-            Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp).fillMaxWidth(),
+            "Search",
+            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp).fillMaxWidth(),
             onSubmit = { if (state.query.trim().length >= 2) onSearchMessages(state.query.trim()) },
         )
-        FlowRow(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (f in ChatFilter.entries) FilterChip(f.label, state.filter == f) { state.filter = f }
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Messages", style = WaType.base.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold), color = c.text, modifier = Modifier.weight(1f))
+            val requests = state.filter == ChatFilter.Requests
+            Text(
+                "Requests",
+                style = WaType.base.copy(fontWeight = FontWeight.SemiBold),
+                color = if (requests) c.text else c.muted,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(role = Role.Tab) { state.filter = if (requests) ChatFilter.All else ChatFilter.Requests },
+            )
+        }
+        FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (f in ChatFilter.entries) if (f != ChatFilter.Requests) FilterChip(f.label, state.filter == f) { state.filter = f }
         }
         ErrorNote(state.error, Modifier.padding(horizontal = 12.dp))
         val chats = state.chats
@@ -131,55 +143,43 @@ fun ChatListPane(
             }
             else -> LazyColumn(Modifier.weight(1f), state = listState) {
                 items(visible, key = { it.id }) { chat ->
-                    ChatRow(chat, chat.id == activeId, fmt.listTime(chat.lastTs)) { onOpen(chat.id) }
+                    ChatRow(chat, chat.id == activeId, formatAgo(chat.lastTs)) { onOpen(chat.id) }
                 }
             }
         }
     }
 }
 
+/** One row of Instagram's inbox: 56 dp avatar, name, preview with the short relative time, no separators. */
 @Composable
 private fun ChatRow(c: ChatSummary, active: Boolean, time: String, onClick: () -> Unit) {
     val col = Wa.colors
     Row(
-        Modifier.fillMaxWidth().height(72.dp).background(if (active) col.active else col.panel).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        Modifier.fillMaxWidth().heightIn(min = 72.dp).background(if (active) col.active else col.panel).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(c.id, c.name, c.avatarUrl, c.kind)
-        Column(Modifier.weight(1f).fillMaxHeight()) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(c.name, style = WaType.chatName, color = col.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(time, style = WaType.tiny, color = col.muted, maxLines = 1)
+        Avatar(c.id, c.name, c.avatarUrl, c.kind, 56.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(c.name, style = WaType.chatName, color = col.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val last = c.lastMessage
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (last?.deleted == true) WaIcon(WaIcons.ban, 13.dp, col.danger)
+                val preview = if (last == null) {
+                    "No messages logged"
+                } else {
+                    val prefix = if (c.kind == ChatKind.Group && last.senderName != null) "${last.senderName}: " else if (last.fromMe) "You: " else ""
+                    prefix + (last.text?.let { IgText.strip(it) } ?: "")
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val last = c.lastMessage
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (last?.deleted == true) WaIcon(WaIcons.ban, 14.dp, col.danger)
-                        val preview = if (last == null) {
-                            null
-                        } else {
-                            buildAnnotatedString {
-                                val prefix = if (c.kind == ChatKind.Group && last.senderName != null) "${last.senderName}: " else if (last.fromMe) "You: " else null
-                                if (prefix != null) withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(prefix) }
-                                append(last.text?.let { IgText.strip(it) } ?: "")
-                            }
-                        }
-                        if (preview != null) {
-                            Text(preview, style = WaType.small.copy(fontSize = 13.2.sp), color = if (last?.deleted == true) col.danger else col.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        } else {
-                            Text("No messages logged", style = WaType.small.copy(fontSize = 13.2.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic), color = col.muted, maxLines = 1)
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (c.pinned) WaIcon(WaIcons.pushpin, 14.dp, col.muted, contentDescription = "Pinned")
-                        if (c.removed) Badge("removed", BadgeTone.Gray)
-                        if (c.deletedCount > 0) Badge("${c.deletedCount}", BadgeTone.Red, WaIcons.ban)
-                    }
-                }
+                val color = if (last?.deleted == true) col.danger else col.muted
+                Text(preview, style = WaType.small, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (time.isNotEmpty()) Text(" · $time", style = WaType.small, color = col.muted, maxLines = 1)
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(col.border))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (c.pinned) WaIcon(WaIcons.pushpin, 14.dp, col.muted, contentDescription = "Pinned")
+            if (c.removed) Badge("removed", BadgeTone.Gray)
+            if (c.deletedCount > 0) Badge("${c.deletedCount}", BadgeTone.Red)
         }
     }
 }
@@ -188,13 +188,12 @@ private fun ChatRow(c: ChatSummary, active: Boolean, time: String, onClick: () -
 @Composable
 fun NoChatSelected(modifier: Modifier = Modifier) {
     val c = Wa.colors
-    Column(modifier.background(c.panel2)) {
+    Column(modifier.background(c.panel)) {
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            EmptyState(WaIcons.shield, "insta_logger") {
+            EmptyState(WaIcons.chats, "Your messages") {
                 MutedText("Select a chat to read its log. Messages deleted for everyone stay visible here and are marked in red.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
-        Box(Modifier.fillMaxWidth().height(6.dp).background(c.accent))
     }
 }
 
@@ -370,14 +369,14 @@ fun ChatPane(
                     }, tint = c.accent)
                 }
             } else Row(
-                Modifier.fillMaxWidth().background(c.head).statusBarsPadding().height(60.dp).padding(start = if (onBack != null) 4.dp else 16.dp, end = 8.dp),
+                Modifier.fillMaxWidth().background(c.head).statusBarsPadding().height(64.dp).padding(start = if (onBack != null) 4.dp else 16.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (onBack != null) IconBtn(WaIcons.back, "Back to chats", onBack)
+                if (onBack != null) IconBtn(WaIcons.back, "Back to chats", onBack, iconSize = 26.dp)
                 Avatar(state.chatId, title, chat?.avatarUrl, chat?.kind, 40.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = WaType.chatName, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, style = WaType.chatName.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold), color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (chat != null) {
                         val sub = buildString {
                             append("${chat.messageCount} logged")
@@ -431,20 +430,27 @@ fun ChatPane(
                             }
                         }
                     }
-                    for (r in rows) {
+                    for ((i, r) in rows.withIndex()) {
                         when (r) {
                             is Row_.Day -> stickyHeader(key = r.key, contentType = "day") {
-                                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
                                     Text(
                                         r.label,
-                                        style = WaType.small.copy(fontSize = 12.sp),
-                                        color = c.text2,
-                                        modifier = Modifier.shadow(1.dp, RoundedCornerShape(8.dp)).clip(RoundedCornerShape(8.dp)).background(c.system).padding(horizontal = 12.dp, vertical = 5.dp),
+                                        style = WaType.small.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                                        color = c.muted,
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.panel.copy(alpha = 0.9f)).padding(horizontal = 8.dp, vertical = 2.dp),
                                     )
                                 }
                             }
                             is Row_.Msg -> item(key = r.key, contentType = "msg") {
-                                MessageBubble(r.m, isGroup, r.showSender, state.highlight == r.m.id, maxBubble)
+                                fun sameSide(o: Row_?) = o is Row_.Msg && o.m.fromMe == r.m.fromMe && o.m.type != MessageType.System && r.m.type != MessageType.System
+                                val prev = rows.getOrNull(i - 1)
+                                MessageBubble(
+                                    r.m, isGroup, r.showSender, state.highlight == r.m.id, maxBubble,
+                                    // A little more room where the conversation switches sides.
+                                    if (prev is Row_.Msg && !sameSide(prev)) Modifier.padding(top = 6.dp) else Modifier,
+                                    joinTop = sameSide(prev), joinBottom = sameSide(rows.getOrNull(i + 1)),
+                                )
                             }
                         }
                     }
