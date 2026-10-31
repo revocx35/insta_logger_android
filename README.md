@@ -37,6 +37,9 @@ Through the same server API as the web UI (`shared/api.d.ts` of insta_logger):
   switching does not sign anything out. **Add another account** opens the same server screen; **Change server** there replaces a
   server you never signed in on (a mistyped address leaves nothing behind) or adds one once your account works, and
   **Switch account** goes back to any account already added.
+- **Automatic login** (0.8.0, on the Instagram screen): save your Instagram username and password on the server; when
+  Instagram ends the session, the server logs back in by itself on its browser screen, typing and moving the mouse like
+  a person. The password is write-only (never shown again); "Log in now" and "Forget" are there too.
 - **Unsent** feed, global **Search**, **Instagram** (live view of the server's browser: tap = click, drag = scroll,
   pinch = zoom, keyboard, view-only switch, restart, log out), **Settings** (account, password, 2FA, recovery key,
   sessions, logging options, background session refresh, Instagram connection, security log, wipe).

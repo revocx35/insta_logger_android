@@ -117,6 +117,24 @@ data class SessionInfo(
 /** `POST /api/ig/session`: log in with a session (cookies) copied from the owner's own browser. */
 @Serializable data class ImportSessionRequest(val cookies: String)
 
+/**
+ * `GET /api/ig/autologin`: the saved Instagram login the server types in by itself when Instagram ends the session.
+ * The password is write-only (never returned). [lastResult]: logged_in · failed · challenge · no_form · covered · busy · error.
+ */
+@Serializable data class AutoLoginStatus(
+    val saved: Boolean = false,
+    val username: String? = null,
+    val enabled: Boolean = false,
+    val paused: Boolean = false,
+    val running: Boolean = false,
+    val lastAttemptAt: Long? = null,
+    val lastResult: String? = null,
+)
+/** `PUT /api/ig/autologin`: username + password together (saves them) and/or enabled. Nulls are left out. */
+@Serializable data class AutoLoginSave(val username: String? = null, val password: String? = null, val enabled: Boolean? = null)
+/** `POST /api/ig/autologin/run`: started · not_on_login_page · not_saved · busy. */
+@Serializable data class AutoLoginRun(val result: String)
+
 /* -------------------------------------------------------------- chats etc. */
 
 @Serializable

@@ -306,6 +306,10 @@ class ApiClient(baseClient: OkHttpClient, val baseUrl: HttpUrl) {
     suspend fun igLogout(): OkResponse = post("/api/ig/logout")
     /** Log in with a session (DevTools "Copy as cURL" / Cookie header) from the owner's own browser. */
     suspend fun igImportSession(cookies: String): OkResponse = send("POST", "/api/ig/session", ImportSessionRequest(cookies))
+    suspend fun autoLogin(): AutoLoginStatus = get("/api/ig/autologin")
+    suspend fun saveAutoLogin(body: AutoLoginSave): AutoLoginStatus = send("PUT", "/api/ig/autologin", body)
+    suspend fun removeAutoLogin(): AutoLoginStatus = request("DELETE", "/api/ig/autologin", null, null, AutoLoginStatus.serializer())
+    suspend fun runAutoLogin(): AutoLoginRun = post("/api/ig/autologin/run")
     suspend fun completeOnboarding(force: Boolean = false): OkResponse =
         send("POST", "/api/onboarding/complete", ForceRequest(if (force) true else null))
     suspend fun vncCredentials(): VncCredentials = get("/api/vnc/credentials")

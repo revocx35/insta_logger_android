@@ -56,6 +56,30 @@ class ApiClientTest {
     }
 
     @Test
+    fun savedLoginIsWriteOnlyAndTogglesWithoutThePassword() = runBlocking {
+        api.csrfToken = "tok"
+        val st = """{"saved":true,"username":"owner.account","enabled":true,"paused":false,"running":false,"lastAttemptAt":null,"lastResult":"logged_in"}"""
+        server.enqueue(json(st))
+        server.enqueue(json(st))
+        server.enqueue(json("""{"result":"started"}"""))
+        server.enqueue(json("""{"saved":false,"username":null,"enabled":false,"paused":false,"running":false,"lastAttemptAt":null,"lastResult":null}"""))
+        val saved = api.saveAutoLogin(AutoLoginSave("owner.account", "pw!", true))
+        assertEquals("owner.account", saved.username)
+        assertEquals("logged_in", saved.lastResult)
+        api.saveAutoLogin(AutoLoginSave(enabled = false))
+        assertEquals("started", api.runAutoLogin().result)
+        assertEquals(false, api.removeAutoLogin().saved)
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("/api/ig/autologin", put.url.encodedPath)
+        assertEquals("""{"username":"owner.account","password":"pw!","enabled":true}""", put.body?.utf8())
+        // Toggling sends only "enabled": no empty username/password that would replace the saved ones.
+        assertEquals("""{"enabled":false}""", server.takeRequest().body?.utf8())
+        assertEquals("/api/ig/autologin/run", server.takeRequest().url.encodedPath)
+        assertEquals("DELETE", server.takeRequest().method)
+    }
+
+    @Test
     fun sendsMessagesAndUploadsRawFiles() = runBlocking {
         api.csrfToken = "tok"
         server.enqueue(json("""{"id":"true_1@c.us_X"}"""))

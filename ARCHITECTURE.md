@@ -94,6 +94,16 @@ wordmark uses Grand Hotel (`res/font`, SIL OFL in `third_party/`).
 - Reels: "Reels" header, filled red heart, double-tap heart pop, audio thumbnail. Stories: gradient-ring tray with
   counts, archive grid with date boxes, viewer with progress bars, tap zones (back / pause / next), photos 5 s.
 
+## Automatic login (0.8.0)
+
+`AutoLoginPanel` (InstagramScreens.kt, above the VNC view; collapsed) mirrors the web's panel for the server's
+automatic login (`GET/PUT/DELETE /api/ig/autologin`, `POST /api/ig/autologin/run`; models `AutoLoginStatus`,
+`AutoLoginSave`, `AutoLoginRun`). The password goes to the server once and the field is cleared; it is never read
+back (the API doesn't return it). Toggling sends only `{"enabled": …}` (`ApiJson` drops nulls), so it never replaces
+the saved login. Results are strings (unknown values shown as is). The typing itself happens on the server
+(server/src/ig/autologin.ts): the phone only sees it on the VNC view. If you touch the VNC view meanwhile, the server
+stops typing (your input wins).
+
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server
 session timeouts apply. Hostile message content: rendered as text only, only http(s) links. Network attacker: TLS

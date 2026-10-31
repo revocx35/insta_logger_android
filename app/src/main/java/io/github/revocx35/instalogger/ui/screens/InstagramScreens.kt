@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import io.github.revocx35.instalogger.core.ApiClient
+import io.github.revocx35.instalogger.core.AutoLoginSave
+import io.github.revocx35.instalogger.core.AutoLoginStatus
 import io.github.revocx35.instalogger.core.IgState
 import io.github.revocx35.instalogger.core.IgStatus
 import io.github.revocx35.instalogger.core.userMessage
@@ -94,8 +96,9 @@ fun InstagramScreen(api: ApiClient, wa: IgStatus?) {
                 WarnBanner(Modifier.clip(RoundedCornerShape(8.dp))) {
                     Text(if (wa?.state == IgState.Challenge) "Instagram asks for a confirmation. Answer it on the screen below." else "Instagram is logged out. Log in on the screen below.", style = WaType.small, color = c.text)
                 }
-                SessionImportPanel(api)
             }
+            AutoLoginPanel(api, wa?.state)
+            if (needsLink) SessionImportPanel(api)
             ErrorNote(error)
             VncView(api, viewOnly, Modifier.weight(1f).fillMaxWidth().heightIn(min = 300.dp))
             MutedText(
@@ -234,6 +237,127 @@ fun SessionImportPanel(api: ApiClient) {
                     }
                 }
             }, style = BtnStyle.Primary, enabled = text.isNotBlank(), busy = busy)
+        }
+    }
+}
+
+private val AUTO_RESULT = mapOf(
+    "logged_in" to "logged in",
+    "failed" to "Instagram did not accept it (wrong password?)",
+    "challenge" to "Instagram asked for a check — answer it on the screen",
+    "no_form" to "the login form was not on the screen",
+    "covered" to "something covered the login form",
+    "busy" to "you were using the screen",
+    "error" to "the browser could not be reached",
+)
+
+/**
+ * The saved Instagram login (like the web's AutoLoginPanel): when Instagram ends the session, the server types it into
+ * the login page by itself, like a person. The password is write-only: sent once, then cleared from the field.
+ */
+@Composable
+fun AutoLoginPanel(api: ApiClient, igState: IgState?) {
+    val c = Wa.colors
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf<AutoLoginStatus?>(null) }
+    var open by rememberSaveable { mutableStateOf(false) }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(igState) {
+        try {
+            status = api.autoLogin()
+        } catch (e: Exception) {
+            error = e.userMessage()
+        }
+    }
+    LaunchedEffect(status?.running) {
+        while (status?.running == true) {
+            kotlinx.coroutines.delay(3000)
+            runCatching { api.autoLogin() }.onSuccess { status = it }
+        }
+    }
+    fun run(done: String? = null, block: suspend () -> AutoLoginStatus?) {
+        busy = true
+        error = null
+        note = null
+        scope.launch {
+            try {
+                block()?.let { status = it }
+                if (done != null) note = done
+            } catch (e: Exception) {
+                error = e.userMessage()
+            } finally {
+                busy = false
+            }
+        }
+    }
+    val s = status
+    val summary = when {
+        s == null -> ""
+        !s.saved -> "not set up"
+        !s.enabled -> "off"
+        s.paused -> "paused"
+        else -> "on"
+    }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.panel2).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+            Text("Automatic login" + if (summary.isNotEmpty()) " — $summary" else "", style = WaType.base.copy(fontWeight = FontWeight.Medium), color = c.text, modifier = Modifier.weight(1f))
+            WaIcon(WaIcons.chevronDown, 20.dp, c.text2)
+        }
+        if (open) {
+            MutedText(
+                "When Instagram ends the session, insta_logger logs back in by itself on the Instagram screen: it moves the mouse and types your username and password like a person would, once per logout. It waits while you use the screen yourself, stops after two failed tries, and leaves checks and 2FA codes to you.",
+                style = WaType.small,
+            )
+            if (s?.saved == true) {
+                Text("Saved for ${s.username ?: ""}", style = WaType.small, color = c.text)
+                SwitchRow(s.enabled, { on -> run { api.saveAutoLogin(AutoLoginSave(enabled = on)) } }, "Log in automatically")
+                if (s.running) MutedText("Logging in…", style = WaType.small)
+                if (s.paused) Text("Paused after failed tries. Check the password, save it again or tap “Log in now”.", style = WaType.small, color = c.warn)
+                val last = s.lastAttemptAt
+                val result = s.lastResult
+                if (last != null && result != null) {
+                    MutedText("Last try ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(last))}: ${AUTO_RESULT[result] ?: result}.", style = WaType.small)
+                }
+            }
+            WaTextField(username, { username = it; note = null }, "Instagram username, phone or email")
+            WaTextField(password, { password = it; note = null }, if (s?.saved == true) "New password" else "Instagram password", password = true, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+            MutedText(
+                "Stored encrypted on your server and never shown again. The server has to read it without you, so someone with full access to the server could recover it — like the Instagram session it already keeps.",
+                style = WaType.small,
+            )
+            ErrorNote(error)
+            note?.let { Text(it, style = WaType.small, color = c.accent2) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                WaButton(if (s?.saved == true) "Replace login" else "Save login", {
+                    run("Saved.") {
+                        val r = api.saveAutoLogin(AutoLoginSave(username.trim(), password, true))
+                        username = ""
+                        password = ""
+                        r
+                    }
+                }, style = BtnStyle.Primary, enabled = username.isNotBlank() && password.isNotEmpty(), busy = busy)
+                if (s?.saved == true && (igState == IgState.Login || s.paused)) {
+                    WaButton("Log in now", {
+                        run {
+                            val r = api.runAutoLogin()
+                            note = when (r.result) {
+                                "started" -> "Logging in — watch the screen below."
+                                "not_on_login_page" -> "The Instagram screen is not on the login page."
+                                "busy" -> "Already logging in."
+                                else -> "Save a login first."
+                            }
+                            api.autoLogin()
+                        }
+                    }, enabled = !busy && !s.running && igState == IgState.Login)
+                }
+                if (s?.saved == true) {
+                    ConfirmButton("Forget", "Forget the saved login", { run("Forgotten.") { api.removeAutoLogin() } }, style = BtnStyle.Ghost)
+                }
+            }
         }
     }
 }
