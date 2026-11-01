@@ -45,6 +45,7 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
 - Trust user-installed CAs or turn off hostname verification; commit keystores or `keystore.properties`.
 
 ## Gotchas
+- A certificate is trusted per host (`ServerTrust`, prefs key `certs:<host>`). Anything that adds one before a probe must go through `ServerTrust.trustFor(host, cert)`: `add()` writes to whichever `serverHost` is current (null, or another account's). Covered by `ServerTrustTest`.
 
 - Many UI-kit names start with `Wa` (`Wa.colors`, `WaIcons`, `WaButton`, `WaTextView`): inherited from the wa_logger
   client, they are just the component names.
