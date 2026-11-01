@@ -59,6 +59,15 @@ class ServerTrust(private val prefs: Prefs) : X509ExtendedTrustManager() {
         anchors = list
     }
 
+    /**
+     * Trusts [cert] for [host] and makes [host] the active one. For a certificate chosen before the first
+     * connect: [serverHost] may still be null or belong to another account, whose trust must not grow.
+     */
+    fun trustFor(host: String, cert: X509Certificate) {
+        serverHost = host.lowercase()
+        add(cert)
+    }
+
     fun remove(cert: X509Certificate) {
         val host = serverHost ?: return
         val list = anchors.filterNot { it.encoded.contentEquals(cert.encoded) }

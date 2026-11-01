@@ -170,8 +170,11 @@ fun ServerScreen(graph: AppGraph, initial: String? = null, onCancel: (() -> Unit
         val cert = bytes?.let { ServerTrust.parseCertificate(it) }
         if (cert == null) {
             error = "That file is not a certificate (PEM or DER)."
+        } else if (url == null) {
+            // The certificate is trusted for one host only, so the address has to be known first.
+            error = "Enter the server address first, then import its certificate."
         } else {
-            graph.trust.add(cert)
+            graph.trust.trustFor(url.host, cert)
             error = null
             url?.let { probe(it) }
         }
