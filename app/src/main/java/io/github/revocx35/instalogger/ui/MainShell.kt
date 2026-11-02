@@ -333,7 +333,7 @@ fun MainShell(graph: AppGraph, session: ServerSession, state: AppState, wa: IgSt
                             val vm: SearchViewModel = viewModel(key = "search:${session.id}:${r.q}") { SearchViewModel(session, r.q) }
                             SearchScreen(vm.query, { vm.query = it }, vm.result, vm.error, vm.busy, vm::run) { chatId, messageId -> openChat(chatId, messageId) }
                         }
-                        composable<InstagramRoute> { InstagramScreen(session.api, wa) }
+                        composable<InstagramRoute> { InstagramScreen(session.api, wa, state.totpEnabled == true) }
                         composable<StoriesRoute> {
                             val vm: StoriesViewModel = viewModel(key = "stories:${session.id}") { StoriesViewModel(session) }
                             StoriesScreen(vm, session, wa?.connected == true) { nav.goTab(Tab.Settings) }

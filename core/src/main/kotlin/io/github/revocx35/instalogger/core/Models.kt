@@ -135,6 +135,48 @@ data class SessionInfo(
 /** `POST /api/ig/autologin/run`: started · not_on_login_page · not_saved · busy. */
 @Serializable data class AutoLoginRun(val result: String)
 
+/*
+ * Session sync: a "home" insta_logger that can log in makes a separate Instagram session for a paired "remote" one
+ * (e.g. on a VPS that gets no login form) when the remote is logged out. See shared/api.d.ts of the server.
+ */
+
+/**
+ * `GET /api/sync/home` (giving side). [lastResult]: given · challenge · failed · no_form · covered · busy · error ·
+ * no_password · cooldown · paused. The pairing secret is never returned.
+ */
+@Serializable data class SyncHomeStatus(
+    val paired: Boolean = false,
+    val pairedAt: Long? = null,
+    val passwordSaved: Boolean = false,
+    val running: Boolean = false,
+    val pausedUntil: Long? = null,
+    val lastRequestAt: Long? = null,
+    val lastResult: String? = null,
+    val lastGivenAt: Long? = null,
+)
+/** `POST /api/sync/home/pair`: the insta_logger password (and 2FA code) again. */
+@Serializable data class SyncPairRequest(val password: String, val totp: String? = null)
+/** The pairing code: shown once, paste it on the remote. */
+@Serializable data class SyncPairing(val code: String)
+
+/**
+ * `GET /api/sync/remote` (receiving side). The pairing code is write-only. [lastResult]: logged_in · unreachable ·
+ * refused · home_busy · home_cooldown · home_paused · home_no_password · home_challenge · home_failed · not_taken · error.
+ */
+@Serializable data class SyncRemoteStatus(
+    val configured: Boolean = false,
+    val url: String? = null,
+    val enabled: Boolean = false,
+    val paused: Boolean = false,
+    val running: Boolean = false,
+    val lastAttemptAt: Long? = null,
+    val lastResult: String? = null,
+)
+/** `PUT /api/sync/remote`: url + code together (saves the pairing) and/or enabled. Nulls are left out. */
+@Serializable data class SyncRemoteSave(val url: String? = null, val code: String? = null, val enabled: Boolean? = null)
+/** `POST /api/sync/remote/run`: started · not_on_login_page · not_configured · busy. */
+@Serializable data class SyncRemoteRun(val result: String)
+
 /* -------------------------------------------------------------- chats etc. */
 
 @Serializable

@@ -23,6 +23,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.test.onAllNodesWithText
+import okhttp3.ResponseBody.Companion.toResponseBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import io.github.revocx35.instalogger.core.ChatSummary
 import io.github.revocx35.instalogger.core.DeletedFeedItem
 import io.github.revocx35.instalogger.core.Formatter
@@ -145,6 +151,34 @@ class ScreenshotTest {
 
     private val aliSummary get() = SampleData.chats.first { it.id == SampleData.ALI }
     private val groupSummary get() = SampleData.chats.first { it.id == SampleData.GROUP }
+
+    /** The Session sync panel opened, both sides set up (canned server answers, no network). */
+    @Test
+    fun phoneSessionSync() {
+        val canned = okhttp3.OkHttpClient.Builder().addInterceptor { chain ->
+            val body = when (chain.request().url.encodedPath) {
+                "/api/sync/home" -> """{"paired":true,"pairedAt":1793620000000,"passwordSaved":true,"running":false,"pausedUntil":null,"lastRequestAt":1793628000000,"lastResult":"given","lastGivenAt":1793628000000}"""
+                "/api/sync/remote" -> """{"configured":true,"url":"http://vpn:8091","enabled":true,"paused":false,"running":false,"lastAttemptAt":1793628000000,"lastResult":"logged_in"}"""
+                else -> "{}"
+            }
+            okhttp3.Response.Builder().request(chain.request()).protocol(okhttp3.Protocol.HTTP_1_1).code(200).message("OK")
+                .body(body.toResponseBody("application/json".toMediaType())).build()
+        }.build()
+        val api = io.github.revocx35.instalogger.core.ApiClient(canned, "http://igl.test/".toHttpUrl())
+        compose.setContent {
+            WaTheme(false) {
+                Box(Modifier.fillMaxSize().background(Wa.colors.bg).padding(12.dp)) {
+                    androidx.compose.foundation.layout.Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                        io.github.revocx35.instalogger.ui.screens.SessionSyncPanel(api, io.github.revocx35.instalogger.core.IgState.Login, totpEnabled = false)
+                    }
+                }
+            }
+        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("giving", substring = true).fetchSemanticsNodes().isNotEmpty() || compose.onAllNodesWithText("getting", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Session sync", substring = true).performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("From http://vpn:8091").fetchSemanticsNodes().isNotEmpty() }
+        compose.onRoot().captureRoboImage("build/screenshots/phone_session_sync.png")
+    }
 
     @Test
     fun phoneChatList() = shot("phone_chats") {

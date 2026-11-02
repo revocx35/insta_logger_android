@@ -60,7 +60,7 @@ import kotlinx.coroutines.launch
 
 /** The real Instagram website in the background browser (like the web's Instagram page). */
 @Composable
-fun InstagramScreen(api: ApiClient, wa: IgStatus?) {
+fun InstagramScreen(api: ApiClient, wa: IgStatus?, totpEnabled: Boolean = false) {
     val c = Wa.colors
     val scope = rememberCoroutineScope()
     val needsLink = wa?.needsLogin == true
@@ -98,6 +98,7 @@ fun InstagramScreen(api: ApiClient, wa: IgStatus?) {
                 }
             }
             AutoLoginPanel(api, wa?.state)
+            SessionSyncPanel(api, wa?.state, totpEnabled)
             if (needsLink) SessionImportPanel(api)
             ErrorNote(error)
             VncView(api, viewOnly, Modifier.weight(1f).fillMaxWidth().heightIn(min = 300.dp))

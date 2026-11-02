@@ -104,6 +104,16 @@ the saved login. Results are strings (unknown values shown as is). The typing it
 (server/src/ig/autologin.ts): the phone only sees it on the VNC view. If you touch the VNC view meanwhile, the server
 stops typing (your input wins).
 
+## Session sync (0.9.0)
+
+`SessionSyncPanel` (SessionSyncPanel.kt, below the automatic login; collapsed) mirrors the web's panel for the server's
+session sync (`/api/sync/home*`, `/api/sync/remote*`; models `SyncHomeStatus`, `SyncPairRequest`, `SyncPairing`,
+`SyncRemoteStatus`, `SyncRemoteSave`, `SyncRemoteRun`). Giving side: "Create pairing code" asks the insta_logger
+password (+ 2FA code when `state.totpEnabled`, passed in from MainShell) and shows the code once with Copy
+(`copySensitive`: excluded from clipboard previews). Receiving side: home address + pairing code (write-only, fields
+cleared after saving), the automatic toggle (sends only `{"enabled": …}`) and "Get session now" while logged out. The
+phone never talks to the other insta_logger or to Instagram: the servers do the exchange (signed, sealed end to end).
+
 ## Threat model (client side)
 Lost/stolen phone: the cookie is Keystore-encrypted, screenshots blocked by default, no disk media cache; server
 session timeouts apply. Hostile message content: rendered as text only, only http(s) links. Network attacker: TLS

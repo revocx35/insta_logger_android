@@ -56,6 +56,29 @@ class ApiClientTest {
     }
 
     @Test
+    fun sessionSyncPairsWithThePasswordAndKeepsTheCodeWriteOnly() = runBlocking {
+        api.csrfToken = "tok"
+        server.enqueue(json("""{"code":"igls1.1.0123456789abcdef.secret"}"""))
+        server.enqueue(json("""{"configured":true,"url":"http://home:8091","enabled":true,"paused":false,"running":false,"lastAttemptAt":null,"lastResult":"home_cooldown"}"""))
+        server.enqueue(json("""{"configured":true,"url":"http://home:8091","enabled":false,"paused":false,"running":false,"lastAttemptAt":null,"lastResult":null}"""))
+        server.enqueue(json("""{"result":"not_on_login_page"}"""))
+        server.enqueue(json("""{"paired":true,"pairedAt":1,"passwordSaved":true,"running":false,"pausedUntil":null,"lastRequestAt":null,"lastResult":"given","lastGivenAt":2}"""))
+        assertEquals("igls1.1.0123456789abcdef.secret", api.syncPair(SyncPairRequest("pw")).code)
+        val saved = api.saveSyncRemote(SyncRemoteSave("http://home:8091", "igls1.code", true))
+        assertEquals("home_cooldown", saved.lastResult)
+        assertEquals(false, api.saveSyncRemote(SyncRemoteSave(enabled = false)).enabled)
+        assertEquals("not_on_login_page", api.runSyncRemote().result)
+        assertEquals("given", api.syncHome().lastResult)
+        val pair = server.takeRequest()
+        assertEquals("/api/sync/home/pair", pair.url.encodedPath)
+        // No "totp":null when 2FA is off.
+        assertEquals("""{"password":"pw"}""", pair.body?.utf8())
+        assertEquals("""{"url":"http://home:8091","code":"igls1.code","enabled":true}""", server.takeRequest().body?.utf8())
+        assertEquals("""{"enabled":false}""", server.takeRequest().body?.utf8())
+        assertEquals("/api/sync/remote/run", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
     fun savedLoginIsWriteOnlyAndTogglesWithoutThePassword() = runBlocking {
         api.csrfToken = "tok"
         val st = """{"saved":true,"username":"owner.account","enabled":true,"paused":false,"running":false,"lastAttemptAt":null,"lastResult":"logged_in"}"""
