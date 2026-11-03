@@ -86,3 +86,5 @@ Releases are signed by hand (key outside the repo, never in CI): bump `versionCo
   `@Before`. `AccountsTest` covers migration, ordering, labels, file names and per-host certificates.
 - Emulator check without a real server: `scripts/fake-logger-api.py` in the homelab skill answers `/api/state` as
   "not logged in" until `/api/auth/login` sets a cookie — switching away and back must keep that cookie.
+
+- Password managers (Bitwarden): `WaTextField` sets Compose autofill `contentType` (Username / Password / NewPassword). Tag every login/signup/password field with it, or the manager only fills the password.
